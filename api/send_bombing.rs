@@ -29,14 +29,15 @@ async fn main() -> Result<(), Error> {
 pub async fn handler(req: Request) -> Result<Response<Body>, Error> {
 
     // ── CORS preflight ──
-    if req.method() == "OPTIONS" {
-        return Ok(Response::builder()
-            .status(StatusCode::OK)
-            .header("Access-Control-Allow-Origin",  "*")
-            .header("Access-Control-Allow-Methods", "POST, OPTIONS")
-            .header("Access-Control-Allow-Headers", "Content-Type, x-auth-token")
-            .body("".into())?);
-    }
+   // ── CORS preflight ──
+if req.method() == "OPTIONS" {
+    return Ok(Response::builder()
+        .status(StatusCode::OK)
+        .header("Access-Control-Allow-Origin", "https://sms-bomber-it.vercel.app") // specific domain
+        .header("Access-Control-Allow-Methods", "POST, OPTIONS")
+        .header("Access-Control-Allow-Headers", "Content-Type, x-auth-token, x-user-id") // x-user-id add kora hoyeche
+        .body("".into())?);
+}
 
     // ── Auth check ──
     let auth = req.headers()
