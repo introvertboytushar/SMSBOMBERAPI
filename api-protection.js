@@ -68,6 +68,7 @@ const CONFIG = {
   // তোমার সাইটের domain গুলো
   ALLOWED_ORIGINS: [
     'https://sms-bomber-it.vercel.app',
+    'https://smsbomber.introvertboytushar.workers.dev', 
     'https://customsms-it.vercel.app',
    
     // 'http://localhost:5500', // local dev এর জন্য uncomment করো
