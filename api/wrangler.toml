@@ -1,0 +1,6 @@
+name = "smsbomber"
+main = "src/lib.rs" # Apnar Rust code jodi src folder-e thake
+compatibility_date = "2026-04-24"
+
+[build]
+command = "worker-build --release"
