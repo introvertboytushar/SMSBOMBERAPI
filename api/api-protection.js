@@ -45,7 +45,7 @@
 import crypto from 'crypto';
 
 // ==================== KV / Redis Client ====================
-// Upstash Redis — Vercel Marketplace থেকে connect করো (free tier আছে)
+// Upstash Redis —  Marketplace থেকে connect করো (free tier আছে)
 // https://vercel.com/integrations/upstash
 let redis = null;
 
@@ -67,9 +67,9 @@ async function getRedis() {
 const CONFIG = {
   // তোমার সাইটের domain গুলো
   ALLOWED_ORIGINS: [
-    'https://customsms.pro.bd',
+    'https://sms-bomber-it.vercel.app',
     'https://customsms-it.vercel.app',
-    'https://coustmsms.vercel.app',
+   
     // 'http://localhost:5500', // local dev এর জন্য uncomment করো
   ],
 
@@ -162,33 +162,10 @@ function getMessageFingerprint(userId, message) {
  * Redis না থাকলে in-memory fallback
  */
 async function checkRateLimitAsync(userId) {
-  const kv = getRedis();
-  const now = Date.now();
-  const key = `rl:${userId}`;
+  // Rate limit disable kora hoyeche jate unlimited bombing kora jay
+  return { limited: false };
+}
 
-  if (kv) {
-    try {
-      // Redis এ atomic increment
-      const count = await kv.incr(key);
-      if (count === 1) {
-        // প্রথম request — TTL set করো
-        await kv.expire(key, CONFIG.RATE_LIMIT_WINDOW_SEC);
-      }
-      if (count > CONFIG.RATE_LIMIT_PER_MINUTE) {
-        const ttl = await kv.ttl(key);
-        return {
-          limited: true,
-          reason: `Too many requests. Try again in ${ttl} seconds.`,
-          retryAfter: ttl,
-        };
-      }
-      return { limited: false };
-    } catch (err) {
-      console.error('[api-protection] Redis rate limit error:', err.message);
-      // Redis error হলে pass করো (graceful degradation)
-      return { limited: false };
-    }
-  }
 
   // ── Fallback: in-memory (local dev) ──
   const record = _memUserRequests.get(userId);
