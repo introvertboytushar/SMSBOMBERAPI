@@ -5,8 +5,15 @@ use serde_json::{json, Value};
 use std::time::Duration;
 use futures::future::join_all;
 
-// ── SECRET TOKEN (frontend এর সাথে match করতে হবে) ──
+// ── SECRET TOKEN ──
 const SECRET_TOKEN: &str = "DCM_DARK_CYBER_2026";
+
+// ── ALLOWED ORIGINS ──
+const ALLOWED_ORIGINS: &[&str] = &[
+    "https://sms-bomber-it.vercel.app",
+    "https://customsms-it.vercel.app",
+    "https://smsbomber.introvertboytushar.workers.dev",
+];
 
 // ── API Structure ──
 struct SmsApi {
@@ -21,6 +28,21 @@ struct BombRequest {
     number: String,
 }
 
+// ── Origin check helper ──
+fn get_allowed_origin(req: &Request) -> &'static str {
+    let origin = req.headers()
+        .get("origin")
+        .or_else(|| req.headers().get("referer"))
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+
+    ALLOWED_ORIGINS
+        .iter()
+        .find(|&&o| origin.starts_with(o))
+        .copied()
+        .unwrap_or("null")
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     run(handler).await
@@ -28,16 +50,37 @@ async fn main() -> Result<(), Error> {
 
 pub async fn handler(req: Request) -> Result<Response<Body>, Error> {
 
+    let allowed_origin = get_allowed_origin(&req);
+
     // ── CORS preflight ──
-   // ── CORS preflight ──
-if req.method() == "OPTIONS" {
-    return Ok(Response::builder()
-        .status(StatusCode::OK)
-        .header("Access-Control-Allow-Origin", "https://sms-bomber-it.vercel.app") // specific domain
-        .header("Access-Control-Allow-Methods", "POST, OPTIONS")
-        .header("Access-Control-Allow-Headers", "Content-Type, x-auth-token, x-user-id") // x-user-id add kora hoyeche
-        .body("".into())?);
-}
+    if req.method() == "OPTIONS" {
+        return Ok(Response::builder()
+            .status(StatusCode::OK)
+            .header("Access-Control-Allow-Origin", allowed_origin)
+            .header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+            .header("Access-Control-Allow-Headers", "Content-Type, x-auth-token, x-user-id")
+            .header("Access-Control-Max-Age", "86400")
+            .body("".into())?);
+    }
+
+    // ── Origin check ──
+    if allowed_origin == "null" {
+        return Ok(Response::builder()
+            .status(StatusCode::FORBIDDEN)
+            .header("Content-Type", "application/json")
+            .header("Access-Control-Allow-Origin", "null")
+            .body(json!({"error": "Access denied", "message": "Origin not allowed"})
+                .to_string().into())?);
+    }
+
+    // ── GET: Token দাও ──
+    if req.method() == "GET" {
+        return Ok(Response::builder()
+            .status(StatusCode::OK)
+            .header("Content-Type", "application/json")
+            .header("Access-Control-Allow-Origin", allowed_origin)
+            .body(json!({"token": SECRET_TOKEN}).to_string().into())?);
+    }
 
     // ── Auth check ──
     let auth = req.headers()
@@ -49,7 +92,7 @@ if req.method() == "OPTIONS" {
         return Ok(Response::builder()
             .status(StatusCode::UNAUTHORIZED)
             .header("Content-Type", "application/json")
-            .header("Access-Control-Allow-Origin", "*")
+            .header("Access-Control-Allow-Origin", allowed_origin)
             .body(json!({"error": "Unauthorized", "message": "Invalid security token!"})
                 .to_string().into())?);
     }
@@ -58,6 +101,7 @@ if req.method() == "OPTIONS" {
     if req.method() != "POST" {
         return Ok(Response::builder()
             .status(StatusCode::METHOD_NOT_ALLOWED)
+            .header("Access-Control-Allow-Origin", allowed_origin)
             .body("POST Only".into())?);
     }
 
@@ -66,15 +110,16 @@ if req.method() == "OPTIONS" {
         Ok(v) => v,
         Err(_) => return Ok(Response::builder()
             .status(StatusCode::BAD_REQUEST)
+            .header("Access-Control-Allow-Origin", allowed_origin)
             .body("Invalid JSON".into())?),
     };
 
     let target = body.number.clone();
 
     // ── phone number helpers ──
-    let bd_no   = target.trim_start_matches('0').to_string();      // 1XXXXXXXXX
-    let bd_full = format!("880{}", bd_no);                          // 8801XXXXXXXXX
-    let plus_bd = format!("+88{}", target);                         // +8801XXXXXXXXX
+    let bd_no   = target.trim_start_matches('0').to_string();
+    let bd_full = format!("880{}", bd_no);
+    let plus_bd = format!("+88{}", target);
 
     // ── Build client ──
     let client = Client::builder()
@@ -184,7 +229,7 @@ if req.method() == "OPTIONS" {
             let body_data = (api.body_builder)(&number);
             let mut h = HeaderMap::new();
             h.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-            h.insert(USER_AGENT,   HeaderValue::from_static(
+            h.insert(USER_AGENT, HeaderValue::from_static(
                 "Mozilla/5.0 (Linux; Android 12; SM-G991B) AppleWebKit/537.36 Chrome/112.0.0.0 Mobile Safari/537.36"
             ));
             h.insert("Accept",          HeaderValue::from_static("application/json, text/plain, */*"));
@@ -229,7 +274,7 @@ if req.method() == "OPTIONS" {
     Ok(Response::builder()
         .status(StatusCode::OK)
         .header("Content-Type", "application/json")
-        .header("Access-Control-Allow-Origin", "*")
+        .header("Access-Control-Allow-Origin", allowed_origin)
         .body(json!({
             "status":   "executed",
             "target":   target,
