@@ -6,7 +6,6 @@ pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
 
     router
         .options("/*", |_req, _ctx| {
-            // Preflight request handle korar jonno header
             let mut headers = Headers::new();
             headers.set("Access-Control-Allow-Origin", "*")?;
             headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")?;
@@ -14,14 +13,14 @@ pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             
             Ok(Response::empty()?.with_headers(headers))
         })
-        .get_async("/api/token", |req, ctx| async move {
-            // Token logic ekhane thakbe
+        .get_async("/api/token", |_req, _ctx| async move {
             let mut headers = Headers::new();
             headers.set("Access-Control-Allow-Origin", "*")?;
+            headers.set("Content-Type", "application/json")?;
             
-            // Response-er sathe headers pathano
-            Response::ok("{\"token\": \"your_token_here\"}")?.with_headers(headers)
+            // Response-ke Result-e wrap kora hoyeche 'Ok(...)' diye
+            Ok(Response::ok("{\"token\": \"your_token_here\"}")?.with_headers(headers))
         })
-        // Onno endpoint gulo (send_bombing) ekhane thakbe
-        .run(req, env).await
+        .run(req, env)
+        .await
 }
