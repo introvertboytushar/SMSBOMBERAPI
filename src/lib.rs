@@ -101,7 +101,7 @@ pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         })
 
         // ── GET /api/token: Token দাও ──
-        .get_async("/api/token", |req, ctx| async move {
+        .get_async("/token", |req, ctx| async move {
             let origin = get_origin(&req);
             let headers = cors_headers(&origin);
 
@@ -124,7 +124,7 @@ pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         })
 
         // ── POST /api/send_bombing: Token check করে SMS পাঠাও ──
-        .post_async("/api/send_bombing", |mut req, ctx| async move {
+        .post_async("/send_bombing", |mut req, ctx| async move {
             let origin = get_origin(&req);
             let headers = cors_headers(&origin);
 
