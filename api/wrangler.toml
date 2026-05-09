@@ -1,14 +1,11 @@
 name = "smsbomber"
-main = "src/lib.rs" # Apnar Rust code jodi src folder-e thake
-compatibility_date = "2026-04-24"
+main = "src/lib.rs"
+compatibility_date = "2026-05-09"
 
 [build]
 command = "worker-build --release"
 
-
 [vars]
-KV_REST_API_URL = " https://saved-gorilla-98680.upstash.io"
+KV_REST_API_URL = "https://saved-gorilla-98680.upstash.io"
 KV_REST_API_TOKEN = "gQAAAAAAAYF4AAIgcDFhYzViY2JkNjUyYmM0MWIzYWI0NTI5Njg3ZTVkNmJlNQ"
 SECRET_KEY = "ADMINOFTeaMDaNgErOuS"
-
-
