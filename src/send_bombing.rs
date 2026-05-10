@@ -1,4 +1,3 @@
-cat > /mnt/user-data/outputs/send_bombing.rs << 'RUSTEOF'
 use worker::*;
 use serde_json::{json, Value};
 
