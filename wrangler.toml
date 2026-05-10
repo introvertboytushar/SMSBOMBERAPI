@@ -3,7 +3,7 @@ main = "src/lib.rs"
 compatibility_date = "2026-05-09"
 
 [build]
-command = "worker-build --release"
+command = "cargo install -q worker-build && worker-build --release"
 
 [vars]
 KV_REST_API_URL = "https://saved-gorilla-98680.upstash.io"
