@@ -7,8 +7,6 @@ const ALLOWED_ORIGINS: &[&str] = &[
     "https://smsbomber.introvertboytushar.workers.dev",
 ];
 
-const SECRET_TOKEN: &str = "DCM_DARK_CYBER_2026";
-
 pub fn get_allowed_origin(req: &Request) -> String {
     let origin = req.headers()
         .get("origin").unwrap_or(None)
@@ -25,7 +23,7 @@ pub fn cors_headers(origin: &str) -> Headers {
     let mut headers = Headers::new();
     headers.set("Access-Control-Allow-Origin", origin).unwrap();
     headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS").unwrap();
-    headers.set("Access-Control-Allow-Headers", "Content-Type, X-Auth-Token, x-auth-token").unwrap();
+    headers.set("Access-Control-Allow-Headers", "Content-Type").unwrap();
     headers.set("Content-Type", "application/json").unwrap();
     headers
 }
@@ -34,31 +32,22 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
     let origin = get_allowed_origin(&req);
     let headers = cors_headers(&origin);
 
+    // OPTIONS
     if req.method() == Method::Options {
         return Ok(Response::empty()?.with_headers(headers));
     }
 
+    // Origin check — শুধু allowed sites থেকে call হবে
     if origin == "null" {
         return Ok(Response::error("Access denied", 403)?.with_headers(headers));
     }
 
-    if req.method() == Method::Get {
-        let body = json!({"token": SECRET_TOKEN}).to_string();
-        return Ok(Response::ok(body)?.with_headers(headers));
-    }
-
-    let token = req.headers()
-        .get("x-auth-token").unwrap_or(None)
-        .unwrap_or_default();
-
-    if token != SECRET_TOKEN {
-        return Ok(Response::error("Unauthorized", 401)?.with_headers(headers));
-    }
-
+    // POST only
     if req.method() != Method::Post {
         return Ok(Response::error("POST Only", 405)?.with_headers(headers));
     }
 
+    // Parse body
     let body: Value = req.json().await.unwrap_or_default();
     let number = body.get("number")
         .and_then(|v| v.as_str())
