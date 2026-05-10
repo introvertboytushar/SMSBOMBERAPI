@@ -6,24 +6,23 @@ pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     let path = url.path();
     let method = req.method();
 
-    // CORS Headers - এটা সব ব্লক ছাড়িয়ে দেবে
+    // CORS Headers - jate Vercel theke kono block na khai
     let mut headers = Headers::new();
     headers.set("Access-Control-Allow-Origin", "*").unwrap();
     headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS").unwrap();
-    headers.set("Access-Control-Allow-Headers", "Content-Type, X-Auth-Token").unwrap();
+    headers.set("Access-Control-Allow-Headers", "Content-Type").unwrap();
 
-    // ১. প্রি-ফ্লাইট রিকোয়েস্ট (OPTIONS)
+    // ১. OPTIONS request handle kora (CORS er jnno)
     if method == Method::Options {
         return Ok(Response::empty()?.with_headers(headers));
     }
 
-    // ২. টোকেন পাথ চেক
+    // ২. Front-end jodi "/get_token" call koreo fele, take fake data dao jate error na ase
     if path == "/get_token" {
-        let body = "{\"token\":\"off\",\"status\":\"ok\"}";
-        return Ok(Response::ok(body)?.with_headers(headers));
+        return Ok(Response::ok("{\"token\":\"no-token\",\"status\":\"ok\"}")?.with_headers(headers));
     }
 
-    // ৩. অ্যাটাক পাথ চেক
+    // ৩. Main Attack Path
     if path == "/send_bombing" && method == Method::Post {
         let mut req_mut = req;
         let body = req_mut.json::<serde_json::Value>().await.unwrap_or_default();
@@ -33,11 +32,11 @@ pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             return Ok(Response::error("Number missing", 400)?.with_headers(headers));
         }
 
-        // আপনার আসল বোমা মারার ফাংশন
+        // Apnar bombing logic call kora
         let result = crate::send_bombing::send(&number, &env).await;
         return Ok(Response::ok(result)?.with_headers(headers));
     }
 
-    // ভুল পাথে আসলে এটা দেখাবে
-    Ok(Response::error(format!("Path {} not found", path), 404)?.with_headers(headers))
+    // Onno kono path hole error
+    Ok(Response::error("Not Found", 404)?.with_headers(headers))
 }
