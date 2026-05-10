@@ -5,7 +5,11 @@ const ALLOWED_ORIGINS: &[&str] = &[
     "https://sms-bomber-it.vercel.app",
     "https://customsms-it.vercel.app",
     "https://smsbomber.introvertboytushar.workers.dev",
+    "https://www.sms-bomber-it.vercel.app",
 ];
+
+// ── Origin check bypass: যদি origin না থাকে তাহলেও allow করো ──
+// (কিছু browser preflight এ origin পাঠায় না)
 
 pub fn get_allowed_origin(req: &Request) -> String {
     let origin = req.headers()
@@ -21,7 +25,9 @@ pub fn get_allowed_origin(req: &Request) -> String {
 
 pub fn cors_headers(origin: &str) -> Headers {
     let mut headers = Headers::new();
-    headers.set("Access-Control-Allow-Origin", origin).unwrap();
+    // origin না থাকলে wildcard দাও
+    let allow_origin = if origin == "null" { "*" } else { origin };
+    headers.set("Access-Control-Allow-Origin", allow_origin).unwrap();
     headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS").unwrap();
     headers.set("Access-Control-Allow-Headers", "Content-Type, x-auth-token").unwrap();
     headers.set("Content-Type", "application/json").unwrap();
@@ -37,10 +43,8 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
         return Ok(Response::empty()?.with_headers(headers));
     }
 
-    // Origin check — শুধু allowed sites থেকে call হবে
-    if origin == "null" {
-        return Ok(Response::error("Access denied", 403)?.with_headers(headers));
-    }
+    // Origin check — "null" হলেও allow করো (wildcard দিয়ে handle হবে)
+    // if origin == "null" { ... } — এই check বাদ দেওয়া হয়েছে
 
     // POST only
     if req.method() != Method::Post {
