@@ -23,7 +23,7 @@ pub fn cors_headers(origin: &str) -> Headers {
     let mut headers = Headers::new();
     headers.set("Access-Control-Allow-Origin", origin).unwrap();
     headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS").unwrap();
-    headers.set("Access-Control-Allow-Headers", "Content-Type").unwrap();
+    headers.set("Access-Control-Allow-Headers", "Content-Type, x-auth-token").unwrap();
     headers.set("Content-Type", "application/json").unwrap();
     headers
 }
@@ -32,7 +32,7 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
     let origin = get_allowed_origin(&req);
     let headers = cors_headers(&origin);
 
-    // OPTIONS
+    // OPTIONS preflight
     if req.method() == Method::Options {
         return Ok(Response::empty()?.with_headers(headers));
     }
@@ -56,7 +56,9 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
         .to_string();
 
     if number.is_empty() {
-        return Ok(Response::ok(json!({"status": "error", "message": "Number missing"}).to_string())?.with_headers(headers));
+        return Ok(Response::ok(
+            json!({"status": "error", "message": "Number missing"}).to_string()
+        )?.with_headers(headers));
     }
 
     let bd_no   = number.trim_start_matches('0').to_string();
@@ -97,6 +99,7 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
     for (name, url, payload) in apis {
         let mut fetch_init = RequestInit::new();
         fetch_init.with_method(Method::Post);
+
         let mut req_headers = Headers::new();
         req_headers.set("Content-Type", "application/json").unwrap();
         req_headers.set("User-Agent", "Mozilla/5.0 (Linux; Android 12; SM-G991B) AppleWebKit/537.36 Chrome/112.0.0.0 Mobile Safari/537.36").unwrap();
