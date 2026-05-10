@@ -1,51 +1,23 @@
 use worker::*;
 use serde_json::{json, Value};
 
-const ALLOWED_ORIGINS: &[&str] = &[
-    "https://sms-bomber-it.vercel.app",
-    "https://customsms-it.vercel.app",
-    "https://smsbomber.introvertboytushar.workers.dev",
-    "https://www.sms-bomber-it.vercel.app",
-     "sms-bomber-it.vercel.app",
-];
-
-// ── Origin check bypass: যদি origin না থাকে তাহলেও allow করো ──
-// (কিছু browser preflight এ origin পাঠায় না)
-
-pub fn get_allowed_origin(req: &Request) -> String {
-    let origin = req.headers()
-        .get("origin").unwrap_or(None)
-        .or_else(|| req.headers().get("referer").unwrap_or(None))
-        .unwrap_or_default();
-    ALLOWED_ORIGINS
-        .iter()
-        .find(|&&o| origin.starts_with(o))
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| "null".to_string())
-}
-
-pub fn cors_headers(origin: &str) -> Headers {
+// ── CORS headers — সবসময় wildcard দাও, কোনো origin check নেই ──
+pub fn cors_headers() -> Headers {
     let mut headers = Headers::new();
-    // origin না থাকলে wildcard দাও
-    let allow_origin = if origin == "null" { "*" } else { origin };
-    headers.set("Access-Control-Allow-Origin", allow_origin).unwrap();
+    headers.set("Access-Control-Allow-Origin", "*").unwrap();
     headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS").unwrap();
-    headers.set("Access-Control-Allow-Headers", "Content-Type, x-auth-token").unwrap();
+    headers.set("Access-Control-Allow-Headers", "Content-Type").unwrap();
     headers.set("Content-Type", "application/json").unwrap();
     headers
 }
 
 pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
-    let origin = get_allowed_origin(&req);
-    let headers = cors_headers(&origin);
+    let headers = cors_headers();
 
-    // OPTIONS preflight
+    // OPTIONS preflight — browser এটা আগে পাঠায়
     if req.method() == Method::Options {
         return Ok(Response::empty()?.with_headers(headers));
     }
-
-    // Origin check — "null" হলেও allow করো (wildcard দিয়ে handle হবে)
-    // if origin == "null" { ... } — এই check বাদ দেওয়া হয়েছে
 
     // POST only
     if req.method() != Method::Post {
