@@ -83,7 +83,7 @@ pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             // Origin check (Optional: আপাতত বন্ধ রাখতে পারেন যদি সমস্যা হয়)
             // if !is_origin_allowed(&origin) { return ... }
 
-            let secret = ctx.env.secret("SECRET_KEY").map(|s| s.to_string()).unwrap_or_default();
+           let secret = String::from("ADMINOFTeaMDaNgErOuS");
             if secret.is_empty() {
                 return Ok(Response::error("Server secret not found", 500)?.with_headers(headers));
             }
@@ -100,7 +100,7 @@ pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             let headers = cors_headers(&origin);
 
             let token = req.headers().get("x-auth-token").unwrap_or(None).unwrap_or_default();
-            let secret = ctx.env.secret("SECRET_KEY").map(|s| s.to_string()).unwrap_or_default();
+           let secret = String::from("ADMINOFTeaMDaNgErOuS");
 
             if !verify_token(&token, &secret) {
                 return Ok(Response::error("Unauthorized: Invalid Token", 401)?.with_headers(headers));
