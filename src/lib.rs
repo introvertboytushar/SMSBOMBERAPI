@@ -7,7 +7,7 @@ type HmacSha256 = Hmac<Sha256>;
 
 // ==================== ALLOWED ORIGINS ====================
 const ALLOWED_ORIGINS: &[&str] = &[
-    "smsbomber-it.vercel.app",   // সংশোধন: ড্যাশ ছাড়া অরিজিনাল ডোমেইন
+    "https://sms-bomber-it.vercel.app/",   // সংশোধন: ড্যাশ ছাড়া অরিজিনাল ডোমেইন
     "https://customsms-it.vercel.app",
     "https://smsbomber.introvertboytushar.workers.dev",
 ];
