@@ -34,7 +34,7 @@ fn cors_headers(origin: &str) -> Headers {
         headers.set("Access-Control-Allow-Origin", origin).unwrap();
     } else {
         // ডেভেলপমেন্টের সুবিধার জন্য চাইলে এখানে "*" দিতে পারেন
-        headers.set("Access-Control-Allow-Origin", "*").unwrap();
+       headers.set("Access-Control-Allow-Origin", origin).unwrap();
     }
     headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS").unwrap();
     headers.set("Access-Control-Allow-Headers", "Content-Type, X-Auth-Token").unwrap();
