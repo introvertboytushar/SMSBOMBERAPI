@@ -6,6 +6,7 @@ const ALLOWED_ORIGINS: &[&str] = &[
     "https://customsms-it.vercel.app",
     "https://smsbomber.introvertboytushar.workers.dev",
     "https://www.sms-bomber-it.vercel.app",
+     "sms-bomber-it.vercel.app",
 ];
 
 // ── Origin check bypass: যদি origin না থাকে তাহলেও allow করো ──
