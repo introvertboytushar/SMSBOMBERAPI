@@ -185,3 +185,4 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
 
     Ok(Response::ok(response_body)?.with_headers(headers))
 }
+RUSTEOF
