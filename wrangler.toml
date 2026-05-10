@@ -1,8 +1,0 @@
-name = "smsbomber"
-main = "src/lib.rs"
-compatibility_date = "2026-05-09"
-
-[vars]
-KV_REST_API_URL = "https://saved-gorilla-98680.upstash.io"
-KV_REST_API_TOKEN = "gQAAAAAAeYF4AAIgcDFhYzViY2JkNjUyYmM0MWIzYWI0NTI5Njg3ZTVkNmJ1NQ"
-SECRET_KEY = "ADMINOFTeaMDaNgErOuS"
