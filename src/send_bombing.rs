@@ -214,6 +214,10 @@ fire("My Guradian BD"
   "type": null
 })
 ), 
+fire("Nexo Pat")
+    "https://host03pet.nexopet.com/api/v1.0/users/send-otp"
+    json!({"phone": &number,})     
+), 
         
         // ── এখানে নতুন API যোগ করো ──
         // fire("API নাম", "https://api.url", json!({"phone": &number})),
