@@ -140,7 +140,10 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
     let bd_no   = number.trim_start_matches('0').to_string(); // 1XXXXXXXXX
     let bd_full = format!("880{}", bd_no);                    // 8801XXXXXXXXX
     let plus_bd = format!("+88{}", number);                   // +8801XXXXXXXXX
-
+let number  = number.clone();
+let bd_no   = bd_no.clone();
+let bd_full = bd_full.clone();
+let plus_bd = plus_bd.clone();
     // ═══════════════════════════════════════════════
     //  API LIST — সব parallel fire
     // ═══════════════════════════════════════════════
