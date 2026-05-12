@@ -25,8 +25,8 @@ jobs:
           worker-build --release
 
       - name: Deploy
-        uses: cloudflare/wrangler-action@v4
+        uses: cloudflare/wrangler-action@v3   # v4 নয়! v3
         with:
-          apiToken: ${{ secrets.CF_API_TOKEN }}
+          apiToken: ${{ secrets.CF_API_TOKEN }}   # CF_API_TOKEN ঠিক করে দাও
           accountId: 9280dbd962b7ff4a5f1abbdbee25263b
           command: deploy
