@@ -107,10 +107,10 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
     }
 
     // ── number formats — প্রতিটা fire() এ .clone() দিয়ে move করব ──
-    let bd_no   = number.trim_start_matches('0').to_string();
-    let bd_full = format!("880{}", bd_no);
-    let plus_bd = format!("+88{}", number);
-
+   let bd_no:   &'static str = Box::leak(number.trim_start_matches('0').to_string().into_boxed_str());
+let bd_full: &'static str = Box::leak(format!("880{}", bd_no).into_boxed_str());
+let plus_bd: &'static str = Box::leak(format!("+88{}", number).into_boxed_str());
+let number:  &'static str = Box::leak(number.into_boxed_str());
     let api_results = parallel![
         fire("Shadhin Music",
             "https://coreapi.shadhinmusic.com/api/v5/otp/OtpRobiReq",
