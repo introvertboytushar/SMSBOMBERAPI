@@ -5,3 +5,4 @@ mod send_bombing;
 pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     send_bombing::handle(req, &env).await
 }
+ 
