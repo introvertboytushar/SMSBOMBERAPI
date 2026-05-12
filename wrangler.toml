@@ -1,9 +1,8 @@
 name = "smsbomber"
 main = "build/worker/shim.mjs"
 compatibility_date = "2026-05-09"
-
 [build]
-command = "cargo install -q worker-build && worker-build --release"
+command = "worker-build --release"
 
 [build.upload]
 format = "modules"
