@@ -26,9 +26,9 @@ jobs:
           source $HOME/.cargo/env
           worker-build --release
 
-      - name: Deploy
+     - name: Deploy
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: 9280dbd962b7ff4a5f1abbdbee25263b
-      command: deploy
+          command: deploy   # ← accountId এর সাথে একই level
