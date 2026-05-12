@@ -6,20 +6,24 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+
       - name: Install Rust
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          source $HOME/.cargo/env
+          . "$HOME/.cargo/env"
           rustup target add wasm32-unknown-unknown
+
       - name: Install worker-build
         run: |
-          source $HOME/.cargo/env
+          . "$HOME/.cargo/env"
           cargo install -q worker-build
+
       - name: Build
         run: |
-          source $HOME/.cargo/env
+          . "$HOME/.cargo/env"
           worker-build --release
+
       - name: Deploy
         uses: cloudflare/wrangler-action@v4
         with:
