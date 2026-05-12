@@ -1,8 +1,6 @@
 name = "smsbomber"
 main = "build/worker/shim.mjs"
 compatibility_date = "2026-05-09"
-[build]
-command = "curl https://sh.rustup.rs -sSf | sh -s -- -y && source $HOME/.cargo/env && cargo install -q worker-build && worker-build --release"
 
 [build.upload]
 format = "modules"
