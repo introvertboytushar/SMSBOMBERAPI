@@ -30,3 +30,4 @@ jobs:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: 9280dbd962b7ff4a5f1abbdbee25263b
           command: deploy
+ 
