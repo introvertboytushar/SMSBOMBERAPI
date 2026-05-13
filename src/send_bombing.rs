@@ -205,7 +205,7 @@ let api_results = parallel![
     fire("Nexo Pat",
         "https://host03pet.nexopet.com/api/v1.0/users/send-otp",
         json!({"phone": number}),
-        &[]
+        &[("Origin": "https://www.nexopet.com")]
     ),
 
     // ── AWS POC ──
