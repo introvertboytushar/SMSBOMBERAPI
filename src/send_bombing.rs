@@ -293,9 +293,11 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
             "https://api.deeptoplay.com/v2/auth/login?country=BD&platform=web&language=en",
             json!({"number": plus_bd}),
             &[
+                   ("Host": "api.deeptoplay.com"),
+                   ("User-Agent": "Mozilla/5.0"),
                 ("Content-Type", "application/json"),
                 ("Origin", "https://www.deeptoplay.com"),
-                ("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36"),
+               
             ]
         ),
 
