@@ -2,8 +2,8 @@ use worker::*;
 use serde_json::{json, Value};
 use wasm_bindgen_futures::JsFuture;
 use wasm_bindgen::JsValue;
-use js_sys::Function;
 use wasm_bindgen::JsCast;
+use js_sys::Function;
 
 // ══════════════════════════════════════════════════════
 //  🚫 BLOCKED NUMBERS
@@ -87,8 +87,8 @@ fn pseudo_rand(seed: u64) -> u64 {
     x ^ (x >> 31)
 }
 
-fn pick<T: ?Sized>(arr: &[T], seed: u64) -> &T {
-    &arr[(pseudo_rand(seed) as usize) % arr.len()]
+fn pick(arr: &[&'static str], seed: u64) -> &'static str {
+    arr[(pseudo_rand(seed) as usize) % arr.len()]
 }
 
 // ══════════════════════════════════════════════════════
