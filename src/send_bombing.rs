@@ -87,7 +87,7 @@ fn pseudo_rand(seed: u64) -> u64 {
     x ^ (x >> 31)
 }
 
-fn pick<T>(arr: &[T], seed: u64) -> &T {
+fn pick<T: ?Sized>(arr: &[T], seed: u64) -> &T {
     &arr[(pseudo_rand(seed) as usize) % arr.len()]
 }
 
