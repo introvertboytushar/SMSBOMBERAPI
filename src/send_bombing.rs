@@ -3,7 +3,7 @@ use serde_json::{json, Value};
 use wasm_bindgen_futures::JsFuture;
 use wasm_bindgen::JsValue;
 use js_sys::Function;
-
+use wasm_bindgen::JsCast;
 // ══════════════════════════════════════════════════════
 //  🚫 BLOCKED NUMBERS
 // ══════════════════════════════════════════════════════
