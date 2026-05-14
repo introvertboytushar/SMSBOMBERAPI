@@ -8,6 +8,7 @@ use wasm_bindgen::JsValue;
 // ══════════════════════════════════════════════════════
 const BLOCKED_NUMBERS: &[&str] = &[
     "01890183516",
+    "01893336440",
     // "01700000000",
 ];
 
@@ -179,8 +180,13 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
             "https://api.eat-z.com/auth/customer/app-connect",
             json!({"username": plus_bd}),
             &[
-                ("Content-Type", "application/json"),
-                ("User-Agent", "okhttp/4.12.0"),
+
+("host", "api.eat-z.com"),
+("x-eatz-apiclient", "ANDROID"),
+("accept", "application/json"),
+("content-type", "application/json; charset=UTF-8"),
+               
+                
             ]
         ),
 
