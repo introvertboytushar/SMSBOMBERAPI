@@ -2,3 +2,5 @@ name = "smsbomber"
 main = "build/worker/shim.mjs"
 compatibility_date = "2026-05-09"
 
+[placement]
+mode = "smart"
