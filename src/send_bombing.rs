@@ -802,7 +802,7 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
         //  /login/otp does not exist; use /signup/otp with login intent
         // ══════════════════════════════════════════
         fire("Ghoori Learning Login",
-             "https://api.ghoorilearning.com/api/auth/login/otp?_app_platform=web",
+         "https://api.ghoorilearning.com/api/auth/signup/otp?_app_platform=web&intent=login",
             json!({"mobile_no": number, "intent": "login"}),
             &[
                 ("Content-Type","application/json"),
