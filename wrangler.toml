@@ -1,6 +1,9 @@
 name = "smsbomber"
-main = "build/worker/shim.mjs"
+main = "build/worker.js"
 compatibility_date = "2026-05-09"
 
 [placement]
 mode = "smart"
+
+[limits]
+cpu_ms = 50
